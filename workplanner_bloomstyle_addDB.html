@@ -1376,13 +1376,7 @@ var LOGIN_SESSION_KEY=STORAGE_KEY+"_loginUserId";
 
 var defaultState={
   currentUserId:null,
-  users:[
-    {id:"u_manager_01",name:"Vy",pin:"1234",isManager:true,managerId:null},
-    {id:"u_staff_01",name:"Uyên",pin:"1111",isManager:false,managerId:"u_manager_01"},
-    {id:"u_staff_02",name:"Quỳnh",pin:"2222",isManager:false,managerId:"u_manager_01"},
-    {id:"u_staff_03",name:"Dung",pin:"3333",isManager:false,managerId:"u_manager_01"},
-    {id:"u_staff_04",name:"Nhật",pin:"4444",isManager:false,managerId:"u_manager_01"}
-  ],
+  users:[],  /* loaded from Supabase */
   categories:["Payroll Service","Recruitment","Training","Engagement","Digital Solution","Report","Others"],
   actionPlans:[
     {name:"Expand Automated Payroll Services Across SCG Vietnam",kpi:"No. of new company onboarded, 1 by Q4.2026"},
@@ -1397,8 +1391,7 @@ var defaultState={
 
 var state=loadState();
 
-state.users=clone(defaultState.users);
-saveState();
+/* users loaded from Supabase in populateLoginUsers() */
 
 var selectedDate=getVietnamToday();
 var calendarMonthDate=new Date(selectedDate+"T00:00:00");
