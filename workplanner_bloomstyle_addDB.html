@@ -1362,14 +1362,12 @@ tr.task-highlight td:last-child{
   </div>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
 // @ts-nocheck
 
-/* Supabase config */
-var SUPABASE_URL="https://tznxjsteeuwaibguklph.supabase.co";
-var SUPABASE_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR6bnhqc3RlZXV3YWliZ3VrbHBoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA4NDQ2NDgsImV4cCI6MjA5NjQyMDY0OH0.oGsyqF2eUXyQEL93wodQTCmURLnxya5Z1ZuTEnGrKe8";
-var sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
+/* Edge Function endpoints */
+var EDGE_LOGIN="https://tznxjsteeuwaibguklph.supabase.co/functions/v1/swift-function";
+var EDGE_GET_USERS="https://tznxjsteeuwaibguklph.supabase.co/functions/v1/get-users";
 
 var STORAGE_KEY="hcedsEnterprisePlanner_v3_full";
 var LOGIN_SESSION_KEY=STORAGE_KEY+"_loginUserId";
@@ -1783,9 +1781,10 @@ async function populateLoginUsers(){
   if(!el)return;
   el.innerHTML='<option value="">Loading...</option>';
   try{
-    var {data,error}=await sb.from("members").select("id,name,is_manager,manager_id").order("name");
-    if(error)throw error;
-    state.users=data.map(function(r){return{id:r.id,name:r.name,isManager:r.is_manager,managerId:r.manager_id};});
+    var res=await fetch(EDGE_GET_USERS);
+    var json=await res.json();
+    if(!json.success)throw new Error("Failed");
+    state.users=json.users.map(function(r){return{id:r.id,name:r.name,isManager:r.is_manager,managerId:r.manager_id};});
     el.innerHTML='<option value="">Select your name</option>';
     state.users.forEach(function(u){
       var opt=document.createElement("option");
@@ -1815,13 +1814,6 @@ function showAppScreen(){
   if(main)main.style.display="";
 }
 
-async function hashPin(pin){
-  var msgBuffer=new TextEncoder().encode(pin);
-  var hashBuffer=await crypto.subtle.digest("SHA-256",msgBuffer);
-  var hashArray=Array.from(new Uint8Array(hashBuffer));
-  return hashArray.map(function(b){return b.toString(16).padStart(2,"0")}).join("");
-}
-
 async function loginHCEDS(){
   var userId=$("loginUserId").value;
   var pin=$("loginPin").value.trim();
@@ -1839,17 +1831,20 @@ async function loginHCEDS(){
   setMessage("loginMessage","Checking...","warn");
 
   try{
-    var pinHash=await hashPin(pin);
-    var {data,error}=await sb.from("members").select("id,name,is_manager,manager_id")
-      .eq("id",userId).eq("pin_hash",pinHash).single();
+    var res=await fetch(EDGE_LOGIN,{
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({userId:userId,pin:pin})
+    });
+    var json=await res.json();
 
-    if(error||!data){
+    if(!json.success){
       setMessage("loginMessage","Incorrect password. Please try again.","err");
       return;
     }
 
-    state.currentUserId=data.id;
-    localStorage.setItem(LOGIN_SESSION_KEY,data.id);
+    state.currentUserId=json.user.id;
+    localStorage.setItem(LOGIN_SESSION_KEY,json.user.id);
     saveState();
 
     $("loginPin").value="";
