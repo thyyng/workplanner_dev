@@ -1992,13 +1992,6 @@ function showAppScreen(){
   if(main)main.style.display="";
 }
 
-async function hashPin(pin){
-  var msgBuffer=new TextEncoder().encode(pin);
-  var hashBuffer=await crypto.subtle.digest("SHA-256",msgBuffer);
-  var hashArray=Array.from(new Uint8Array(hashBuffer));
-  return hashArray.map(function(b){return b.toString(16).padStart(2,"0")}).join("");
-}
-
 async function loginHCEDS(){
   var userId=$("loginUserId").value;
   var pin=$("loginPin").value.trim();
@@ -2016,17 +2009,23 @@ async function loginHCEDS(){
   setMessage("loginMessage","Checking...","warn");
 
   try{
-    var pinHash=await hashPin(pin);
-    var {data,error}=await sb.from("members").select("id,name,is_manager,manager_id")
-      .eq("id",userId).eq("pin_hash",pinHash).single();
+    var res=await fetch(EDGE_LOGIN,{
+      method:"POST",
+      headers:{
+        "Content-Type":"application/json",
+        "Authorization":"Bearer "+ANON_KEY
+      },
+      body:JSON.stringify({userId:userId,pin:pin})
+    });
+    var json=await res.json();
 
-    if(error||!data){
+    if(!json.success){
       setMessage("loginMessage","Incorrect password. Please try again.","err");
       return;
     }
 
-    state.currentUserId=data.id;
-    localStorage.setItem(LOGIN_SESSION_KEY,data.id);
+    state.currentUserId=json.user.id;
+    localStorage.setItem(LOGIN_SESSION_KEY,json.user.id);
     saveState();
 
     $("loginPin").value="";
@@ -4371,6 +4370,9 @@ document.addEventListener("DOMContentLoaded", function () {
       }
     });
   }
+
+  
+  
   if (typeof closeNotificationPanelOnOutsideClick === "function") {
     document.addEventListener("click", closeNotificationPanelOnOutsideClick);
   }
