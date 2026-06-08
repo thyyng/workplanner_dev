@@ -1366,15 +1366,17 @@ tr.task-highlight td:last-child{
 <script>
 // @ts-nocheck
 
-/* Supabase config */
+/* Supabase config — sb client only for Realtime subscriptions */
 var SUPABASE_URL="https://tznxjsteeuwaibguklph.supabase.co";
 var ANON_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR6bnhqc3RlZXV3YWliZ3VrbHBoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA4NDQ2NDgsImV4cCI6MjA5NjQyMDY0OH0.oGsyqF2eUXyQEL93wodQTCmURLnxya5Z1ZuTEnGrKe8";
 var SUPABASE_KEY=ANON_KEY;
+/* sb is ONLY used for Realtime — all DB queries go through Edge Functions */
 var sb=supabase.createClient(SUPABASE_URL,ANON_KEY);
 
 /* Edge Function endpoints */
 var EDGE_LOGIN="https://tznxjsteeuwaibguklph.supabase.co/functions/v1/swift-function";
 var EDGE_GET_USERS="https://tznxjsteeuwaibguklph.supabase.co/functions/v1/get-users";
+var EDGE_API="https://tznxjsteeuwaibguklph.supabase.co/functions/v1/api";
 
 var STORAGE_KEY="hcedsEnterprisePlanner_v3_full";
 var LOGIN_SESSION_KEY=STORAGE_KEY+"_loginUserId";
@@ -1419,6 +1421,19 @@ function saveState(){
   if(state.currentUserId){
     localStorage.setItem(LOGIN_SESSION_KEY,state.currentUserId);
   }
+}
+
+/* ── Single API caller → all requests go through Edge Function ── */
+async function apiCall(action, payload){
+  var res=await fetch(EDGE_API,{
+    method:"POST",
+    headers:{
+      "Content-Type":"application/json",
+      "Authorization":"Bearer "+ANON_KEY
+    },
+    body:JSON.stringify({action:action, payload:payload||{}})
+  });
+  return res.json();
 }
 
 /* ── Supabase DB helpers ── */
@@ -1470,28 +1485,24 @@ function stateTaskToDb(t){
 
 async function loadAllData(){
   try{
-    /* Load ref_data */
-    var {data:refs}=await sb.from("ref_data").select("*").order("name");
-    if(refs){
-      state.categories=refs.filter(function(r){return r.type==="category"}).map(function(r){return r.name});
-      state.companies=refs.filter(function(r){return r.type==="company"}).map(function(r){return r.name});
-      state.actionPlans=refs.filter(function(r){return r.type==="action_plan"}).map(function(r){return{name:r.name,kpi:r.kpi||""}});
+    /* Load ref_data via Edge Function */
+    var refsRes=await apiCall("get-refs");
+    if(refsRes.success && refsRes.data){
+      state.categories=refsRes.data.filter(function(r){return r.type==="category"}).map(function(r){return r.name});
+      state.companies=refsRes.data.filter(function(r){return r.type==="company"}).map(function(r){return r.name});
+      state.actionPlans=refsRes.data.filter(function(r){return r.type==="action_plan"}).map(function(r){return{name:r.name,kpi:r.kpi||""}});
     }
 
-    /* Load tasks — all team members */
-    var teamIds=getAccessibleTeamMemberIds();
-    var {data:tasks}=await sb.from("tasks").select("*");
-    if(tasks){
-      state.tasks=tasks.map(dbTaskToState);
+    /* Load tasks via Edge Function */
+    var tasksRes=await apiCall("get-tasks");
+    if(tasksRes.success && tasksRes.data){
+      state.tasks=tasksRes.data.map(dbTaskToState);
     }
 
-    /* Load notifications for current user */
-    var {data:notis}=await sb.from("notifications")
-      .select("*")
-      .eq("user_id",state.currentUserId)
-      .order("created_at",{ascending:false});
-    if(notis){
-      state.notifications=notis.map(function(n){
+    /* Load notifications via Edge Function */
+    var notiRes=await apiCall("get-notifications",{userId:state.currentUserId});
+    if(notiRes.success && notiRes.data){
+      state.notifications=notiRes.data.map(function(n){
         return{
           id:n.id,
           userId:n.user_id,
@@ -1511,38 +1522,27 @@ async function loadAllData(){
 
 async function dbSaveTask(task){
   try{
-    var {error}=await sb.from("tasks").upsert(stateTaskToDb(task));
-    if(error)console.error("dbSaveTask error:",error);
+    var r=await apiCall("save-task",stateTaskToDb(task));
+    if(!r.success)console.error("dbSaveTask error:",r.error);
   }catch(e){console.error(e);}
 }
 
 async function dbDeleteTask(id){
   try{
-    await sb.from("tasks").delete().eq("id",id);
+    await apiCall("update-task",{id:id,fields:{deleted:true}});
   }catch(e){console.error(e);}
 }
 
 async function dbUpdateTask(id,fields){
-  var dbFields={};
-  if(fields.completion!==undefined)dbFields.completion=fields.completion;
-  if(fields.carriedToDate!==undefined)dbFields.carried_to_date=fields.carriedToDate;
-  if(fields.date!==undefined)dbFields.date=fields.date;
-  if(fields.name!==undefined)dbFields.name=fields.name;
-  if(fields.category!==undefined)dbFields.category=fields.category;
-  if(fields.actionPlan!==undefined)dbFields.action_plan=fields.actionPlan;
-  if(fields.allocation!==undefined)dbFields.allocation=fields.allocation;
-  if(fields.company!==undefined)dbFields.company=fields.company;
-  if(fields.workLocation!==undefined)dbFields.work_location=fields.workLocation;
-  if(fields.note!==undefined)dbFields.note=fields.note;
   try{
-    var {error}=await sb.from("tasks").update(dbFields).eq("id",id);
-    if(error)console.error("dbUpdateTask error:",error);
+    var r=await apiCall("update-task",{id:id,fields:fields});
+    if(!r.success)console.error("dbUpdateTask error:",r.error);
   }catch(e){console.error(e);}
 }
 
 async function dbSaveNotification(n){
   try{
-    await sb.from("notifications").upsert({
+    await apiCall("save-notification",{
       id:n.id,
       user_id:n.userId,
       title:n.title,
@@ -1558,25 +1558,25 @@ async function dbSaveNotification(n){
 async function dbMarkNotificationsRead(ids){
   if(!ids||!ids.length)return;
   try{
-    await sb.from("notifications").update({read:true}).in("id",ids);
+    await apiCall("mark-notifications-read",{ids:ids});
   }catch(e){console.error(e);}
 }
 
 async function dbSaveRef(type,name,kpi){
   try{
-    await sb.from("ref_data").upsert({type:type,name:name,kpi:kpi||""},{onConflict:"type,name"});
+    await apiCall("save-ref",{type:type,name:name,kpi:kpi||""});
   }catch(e){console.error(e);}
 }
 
 async function dbDeleteRef(type,name){
   try{
-    await sb.from("ref_data").delete().eq("type",type).eq("name",name);
+    await apiCall("delete-ref",{type:type,name:name});
   }catch(e){console.error(e);}
 }
 
 async function dbUpdateRef(type,oldName,newName,kpi){
   try{
-    await sb.from("ref_data").update({name:newName,kpi:kpi||""}).eq("type",type).eq("name",oldName);
+    await apiCall("update-ref",{type:type,oldName:oldName,newName:newName,kpi:kpi||""});
   }catch(e){console.error(e);}
 }
 
@@ -1610,9 +1610,9 @@ function setupRealtime(){
       }
     })
     .on("postgres_changes",{event:"*",schema:"public",table:"ref_data"},function(payload){
-      /* Reload all refs on any change */
-      sb.from("ref_data").select("*").order("name").then(function(res){
-        if(!res.data)return;
+      /* Reload all refs on any change via Edge Function */
+      apiCall("get-refs").then(function(res){
+        if(!res.success||!res.data)return;
         state.categories=res.data.filter(function(r){return r.type==="category"}).map(function(r){return r.name});
         state.companies=res.data.filter(function(r){return r.type==="company"}).map(function(r){return r.name});
         state.actionPlans=res.data.filter(function(r){return r.type==="action_plan"}).map(function(r){return{name:r.name,kpi:r.kpi||""}});
