@@ -1362,8 +1362,15 @@ tr.task-highlight td:last-child{
   </div>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
 // @ts-nocheck
+
+/* Supabase config */
+var SUPABASE_URL="https://tznxjsteeuwaibguklph.supabase.co";
+var ANON_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR6bnhqc3RlZXV3YWliZ3VrbHBoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA4NDQ2NDgsImV4cCI6MjA5NjQyMDY0OH0.oGsyqF2eUXyQEL93wodQTCmURLnxya5Z1ZuTEnGrKe8";
+var SUPABASE_KEY=ANON_KEY;
+var sb=supabase.createClient(SUPABASE_URL,ANON_KEY);
 
 /* Edge Function endpoints */
 var EDGE_LOGIN="https://tznxjsteeuwaibguklph.supabase.co/functions/v1/swift-function";
@@ -1374,15 +1381,10 @@ var LOGIN_SESSION_KEY=STORAGE_KEY+"_loginUserId";
 
 var defaultState={
   currentUserId:null,
-  users:[],  /* loaded from Supabase */
-  categories:["Payroll Service","Recruitment","Training","Engagement","Digital Solution","Report","Others"],
-  actionPlans:[
-    {name:"Expand Automated Payroll Services Across SCG Vietnam",kpi:"No. of new company onboarded, 1 by Q4.2026"},
-    {name:"Drive AI-Driven Internal Document & Optimization",kpi:"User adoption 70%; No. of process improvements implemented: 3 in VCO"},
-    {name:"Strengthen Employer Branding - Organization of Possibilities Project Support",kpi:"Engagement rate on LinkedIn: 30% YOY"},
-    {name:"Build HR Capability & Digital Mindset",kpi:"Develop future-ready HR professionals with digital and analytical skills"}
-  ],
-  companies:["LSP","Prime","AJ Plast","CBMV","VCO","UNIC","BMP","VCPC","BLC","DTP"],
+  users:[],
+  categories:[],
+  actionPlans:[],
+  companies:[],
   tasks:[],
   notifications:[]
 };
@@ -1406,48 +1408,219 @@ function clone(x){return JSON.parse(JSON.stringify(x))}
 function rounded(n){return Math.round(Number(n||0)*100)/100}
 
 function loadState(){
-  var saved=localStorage.getItem(STORAGE_KEY);
-  if(!saved)return clone(defaultState);
-
-  try{
-    var p=JSON.parse(saved);
-    return {
-      currentUserId:p.currentUserId||null,
-      users:defaultState.users,
-      categories:p.categories||defaultState.categories,
-      actionPlans:normalizeActionPlans(p.actionPlans||defaultState.actionPlans),
-      companies:p.companies||defaultState.companies,
-      tasks:(p.tasks||[]).map(function(t){
-        return Object.assign({
-          id:"",
-          taskId:"",
-          ownerId:p.currentUserId||"u_manager_01",
-          createdBy:null,
-          assignedBy:null,
-          assignedAt:null,
-          date:"",
-          name:"",
-          category:"",
-          actionPlan:"",
-          company:"",
-          workLocation:"At Office (VCO)",
-          allocation:0,
-          completion:0,
-          note:"",
-          carriedToDate:null,
-          carriedFromDate:null,
-          originalTaskId:null
-        },t);
-      }),
-      notifications:p.notifications||[]
-    };
-  }catch(e){
-    return clone(defaultState);
-  }
+  /* state now lives in Supabase — only persist currentUserId locally */
+  var s=clone(defaultState);
+  s.currentUserId=localStorage.getItem(LOGIN_SESSION_KEY)||null;
+  return s;
 }
 
 function saveState(){
-  localStorage.setItem(STORAGE_KEY,JSON.stringify(state));
+  /* keep localStorage only for currentUserId session */
+  if(state.currentUserId){
+    localStorage.setItem(LOGIN_SESSION_KEY,state.currentUserId);
+  }
+}
+
+/* ── Supabase DB helpers ── */
+function dbTaskToState(r){
+  return {
+    id:r.id,
+    taskId:r.task_id,
+    ownerId:r.owner_id,
+    createdBy:r.created_by,
+    assignedBy:r.assigned_by||null,
+    assignedAt:r.assigned_at||null,
+    date:r.date,
+    name:r.name,
+    category:r.category,
+    actionPlan:r.action_plan,
+    company:r.company,
+    workLocation:r.work_location||"At Office (VCO)",
+    allocation:Number(r.allocation||0),
+    completion:Number(r.completion||0),
+    note:r.note||"",
+    carriedToDate:r.carried_to_date||null,
+    carriedFromDate:r.carried_from_date||null,
+    originalTaskId:r.original_task_id||null
+  };
+}
+
+function stateTaskToDb(t){
+  return {
+    id:t.id,
+    task_id:t.taskId,
+    owner_id:t.ownerId,
+    created_by:t.createdBy,
+    assigned_by:t.assignedBy||null,
+    assigned_at:t.assignedAt||null,
+    date:t.date,
+    name:t.name,
+    category:t.category,
+    action_plan:t.actionPlan,
+    company:t.company,
+    work_location:t.workLocation||"At Office (VCO)",
+    allocation:t.allocation,
+    completion:t.completion,
+    note:t.note||"",
+    carried_to_date:t.carriedToDate||null,
+    carried_from_date:t.carriedFromDate||null,
+    original_task_id:t.originalTaskId||null
+  };
+}
+
+async function loadAllData(){
+  try{
+    /* Load ref_data */
+    var {data:refs}=await sb.from("ref_data").select("*").order("name");
+    if(refs){
+      state.categories=refs.filter(function(r){return r.type==="category"}).map(function(r){return r.name});
+      state.companies=refs.filter(function(r){return r.type==="company"}).map(function(r){return r.name});
+      state.actionPlans=refs.filter(function(r){return r.type==="action_plan"}).map(function(r){return{name:r.name,kpi:r.kpi||""}});
+    }
+
+    /* Load tasks — all team members */
+    var teamIds=getAccessibleTeamMemberIds();
+    var {data:tasks}=await sb.from("tasks").select("*");
+    if(tasks){
+      state.tasks=tasks.map(dbTaskToState);
+    }
+
+    /* Load notifications for current user */
+    var {data:notis}=await sb.from("notifications")
+      .select("*")
+      .eq("user_id",state.currentUserId)
+      .order("created_at",{ascending:false});
+    if(notis){
+      state.notifications=notis.map(function(n){
+        return{
+          id:n.id,
+          userId:n.user_id,
+          title:n.title,
+          message:n.message,
+          taskId:n.task_id||"",
+          taskDate:n.task_date||"",
+          read:n.read||false,
+          createdAt:n.created_at
+        };
+      });
+    }
+  }catch(e){
+    console.error("loadAllData error:",e);
+  }
+}
+
+async function dbSaveTask(task){
+  try{
+    var {error}=await sb.from("tasks").upsert(stateTaskToDb(task));
+    if(error)console.error("dbSaveTask error:",error);
+  }catch(e){console.error(e);}
+}
+
+async function dbDeleteTask(id){
+  try{
+    await sb.from("tasks").delete().eq("id",id);
+  }catch(e){console.error(e);}
+}
+
+async function dbUpdateTask(id,fields){
+  var dbFields={};
+  if(fields.completion!==undefined)dbFields.completion=fields.completion;
+  if(fields.carriedToDate!==undefined)dbFields.carried_to_date=fields.carriedToDate;
+  if(fields.date!==undefined)dbFields.date=fields.date;
+  if(fields.name!==undefined)dbFields.name=fields.name;
+  if(fields.category!==undefined)dbFields.category=fields.category;
+  if(fields.actionPlan!==undefined)dbFields.action_plan=fields.actionPlan;
+  if(fields.allocation!==undefined)dbFields.allocation=fields.allocation;
+  if(fields.company!==undefined)dbFields.company=fields.company;
+  if(fields.workLocation!==undefined)dbFields.work_location=fields.workLocation;
+  if(fields.note!==undefined)dbFields.note=fields.note;
+  try{
+    var {error}=await sb.from("tasks").update(dbFields).eq("id",id);
+    if(error)console.error("dbUpdateTask error:",error);
+  }catch(e){console.error(e);}
+}
+
+async function dbSaveNotification(n){
+  try{
+    await sb.from("notifications").upsert({
+      id:n.id,
+      user_id:n.userId,
+      title:n.title,
+      message:n.message,
+      task_id:n.taskId||"",
+      task_date:n.taskDate||null,
+      read:n.read||false,
+      created_at:n.createdAt
+    });
+  }catch(e){console.error(e);}
+}
+
+async function dbMarkNotificationsRead(ids){
+  if(!ids||!ids.length)return;
+  try{
+    await sb.from("notifications").update({read:true}).in("id",ids);
+  }catch(e){console.error(e);}
+}
+
+async function dbSaveRef(type,name,kpi){
+  try{
+    await sb.from("ref_data").upsert({type:type,name:name,kpi:kpi||""},{onConflict:"type,name"});
+  }catch(e){console.error(e);}
+}
+
+async function dbDeleteRef(type,name){
+  try{
+    await sb.from("ref_data").delete().eq("type",type).eq("name",name);
+  }catch(e){console.error(e);}
+}
+
+async function dbUpdateRef(type,oldName,newName,kpi){
+  try{
+    await sb.from("ref_data").update({name:newName,kpi:kpi||""}).eq("type",type).eq("name",oldName);
+  }catch(e){console.error(e);}
+}
+
+/* ── Realtime subscriptions ── */
+function setupRealtime(){
+  sb.channel("hceds-realtime")
+    .on("postgres_changes",{event:"*",schema:"public",table:"tasks"},function(payload){
+      if(payload.eventType==="INSERT"||payload.eventType==="UPDATE"){
+        var t=dbTaskToState(payload.new);
+        var idx=state.tasks.findIndex(function(x){return x.id===t.id});
+        if(idx>=0)state.tasks[idx]=t;
+        else state.tasks.push(t);
+      }else if(payload.eventType==="DELETE"){
+        state.tasks=state.tasks.filter(function(x){return x.id!==payload.old.id});
+      }
+      renderAll();
+    })
+    .on("postgres_changes",{event:"*",schema:"public",table:"notifications"},function(payload){
+      if(payload.new && payload.new.user_id!==state.currentUserId)return;
+      if(payload.eventType==="INSERT"){
+        var n=payload.new;
+        state.notifications.unshift({
+          id:n.id,userId:n.user_id,title:n.title,message:n.message,
+          taskId:n.task_id||"",taskDate:n.task_date||"",read:n.read||false,createdAt:n.created_at
+        });
+        renderNotifications();
+      }else if(payload.eventType==="UPDATE"){
+        var idx2=state.notifications.findIndex(function(x){return x.id===payload.new.id});
+        if(idx2>=0)state.notifications[idx2].read=payload.new.read;
+        renderNotifications();
+      }
+    })
+    .on("postgres_changes",{event:"*",schema:"public",table:"ref_data"},function(payload){
+      /* Reload all refs on any change */
+      sb.from("ref_data").select("*").order("name").then(function(res){
+        if(!res.data)return;
+        state.categories=res.data.filter(function(r){return r.type==="category"}).map(function(r){return r.name});
+        state.companies=res.data.filter(function(r){return r.type==="company"}).map(function(r){return r.name});
+        state.actionPlans=res.data.filter(function(r){return r.type==="action_plan"}).map(function(r){return{name:r.name,kpi:r.kpi||""}});
+        renderSelectOptions();
+        renderReferences();
+      });
+    })
+    .subscribe();
 }
 
 function normalizeActionPlans(list){
@@ -1658,7 +1831,7 @@ function ensureTaskMeta(){
     }
   });
 
-  if(changed)saveState();
+  /* tasks now sync via Supabase — no local saveState needed */
 }
 
 function getAssignmentText(t){
@@ -1700,9 +1873,9 @@ function handleBusinessTripIfNeeded(task){
 }
 
 /* Notifications */
-function addNotification(userId,title,message,taskId,taskDate){
+async function addNotification(userId,title,message,taskId,taskDate){
   if(!state.notifications)state.notifications=[];
-  state.notifications.push({
+  var n={
     id:"noti_"+Date.now()+"_"+Math.random().toString(16).slice(2),
     userId:userId,
     title:title,
@@ -1711,7 +1884,9 @@ function addNotification(userId,title,message,taskId,taskDate){
     taskDate:taskDate||"",
     read:false,
     createdAt:new Date().toISOString()
-  });
+  };
+  state.notifications.unshift(n);
+  await dbSaveNotification(n);
 }
 
 function getMyNotifications(){
@@ -1762,8 +1937,9 @@ function toggleNotificationPanel(){
   p.classList.toggle("show");
 
   if(p.classList.contains("show")){
+    var unreadIds=getMyNotifications().filter(function(n){return !n.read}).map(function(n){return n.id});
     getMyNotifications().forEach(function(n){n.read=true});
-    saveState();
+    dbMarkNotificationsRead(unreadIds);
     renderNotifications();
   }
 }
@@ -1781,7 +1957,9 @@ async function populateLoginUsers(){
   if(!el)return;
   el.innerHTML='<option value="">Loading...</option>';
   try{
-    var res=await fetch(EDGE_GET_USERS);
+    var res=await fetch(EDGE_GET_USERS,{
+      headers:{"Authorization":"Bearer "+ANON_KEY}
+    });
     var json=await res.json();
     if(!json.success)throw new Error("Failed");
     state.users=json.users.map(function(r){return{id:r.id,name:r.name,isManager:r.is_manager,managerId:r.manager_id};});
@@ -1814,6 +1992,13 @@ function showAppScreen(){
   if(main)main.style.display="";
 }
 
+async function hashPin(pin){
+  var msgBuffer=new TextEncoder().encode(pin);
+  var hashBuffer=await crypto.subtle.digest("SHA-256",msgBuffer);
+  var hashArray=Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map(function(b){return b.toString(16).padStart(2,"0")}).join("");
+}
+
 async function loginHCEDS(){
   var userId=$("loginUserId").value;
   var pin=$("loginPin").value.trim();
@@ -1831,23 +2016,17 @@ async function loginHCEDS(){
   setMessage("loginMessage","Checking...","warn");
 
   try{
-    var res=await fetch(EDGE_LOGIN,{
-      method:"POST",
-      headers:{
-        "Content-Type":"application/json",
-        "Authorization":"Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR6bnhqc3RlZXV3YWliZ3VrbHBoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA4NDQ2NDgsImV4cCI6MjA5NjQyMDY0OH0.oGsyqF2eUXyQEL93wodQTCmURLnxya5Z1ZuTEnGrKe8"
-      },
-      body:JSON.stringify({userId:userId,pin:pin})
-    });
-    var json=await res.json();
+    var pinHash=await hashPin(pin);
+    var {data,error}=await sb.from("members").select("id,name,is_manager,manager_id")
+      .eq("id",userId).eq("pin_hash",pinHash).single();
 
-    if(!json.success){
+    if(error||!data){
       setMessage("loginMessage","Incorrect password. Please try again.","err");
       return;
     }
 
-    state.currentUserId=json.user.id;
-    localStorage.setItem(LOGIN_SESSION_KEY,json.user.id);
+    state.currentUserId=data.id;
+    localStorage.setItem(LOGIN_SESSION_KEY,data.id);
     saveState();
 
     $("loginPin").value="";
@@ -1863,7 +2042,14 @@ async function loginHCEDS(){
 function logoutHCEDS(){
   localStorage.removeItem(LOGIN_SESSION_KEY);
   state.currentUserId=null;
-  saveState();
+  /* Reset state */
+  state.tasks=[];
+  state.notifications=[];
+  state.categories=[];
+  state.actionPlans=[];
+  state.companies=[];
+  /* Remove realtime channel */
+  sb.removeAllChannels();
 
   populateLoginUsers();
 
@@ -2241,7 +2427,7 @@ function validateTask(data,exceptId){
   return"";
 }
 
-function saveTask(prefix,date,messageId){
+async function saveTask(prefix,date,messageId){
   var data=getFormData(prefix,date);
   var err=validateTask(data);
 
@@ -2271,7 +2457,7 @@ function saveTask(prefix,date,messageId){
   };
 
   state.tasks.push(task);
-  saveState();
+  await dbSaveTask(task);
 
   handleBusinessTripIfNeeded(task);
 
@@ -2401,7 +2587,7 @@ function teamTaskTable(tasks){
   '</tbody></table>';
 }
 
-function updateCompletion(id,value){
+async function updateCompletion(id,value){
   var n=Number(value);
 
   if(Number.isNaN(n)||n<0||n>100){
@@ -2414,15 +2600,15 @@ function updateCompletion(id,value){
   if(!t)return;
 
   t.completion=rounded(n);
-  saveState();
+  await dbUpdateTask(id,{completion:t.completion});
   renderAll();
 }
 
-function markDone(id){
+async function markDone(id){
   var t=state.tasks.find(function(x){return x.id===id});
   if(!t)return;
   t.completion=100;
-  saveState();
+  await dbUpdateTask(id,{completion:100});
   renderAll();
 }
 
@@ -2450,7 +2636,7 @@ function closeEditModal(){
   $("editModal").classList.remove("show");
 }
 
-function saveEditedTask(){
+async function saveEditedTask(){
   var id=$("editId").value;
   var t=state.tasks.find(function(x){return x.id===id});
   if(!t)return;
@@ -2487,7 +2673,11 @@ function saveEditedTask(){
     note:data.note
   });
 
-  saveState();
+  await dbUpdateTask(id,{
+    date:t.date,name:t.name,category:t.category,actionPlan:t.actionPlan,
+    allocation:t.allocation,company:t.company,workLocation:t.workLocation,
+    completion:t.completion,note:t.note
+  });
 
   handleBusinessTripIfNeeded(t);
 
@@ -2714,7 +2904,7 @@ function renderActionList(){
   }).join("");
 }
 
-function addReference(key,inputId){
+async function addReference(key,inputId){
   var v=$(inputId).value.trim();
 
   if(!v){
@@ -2727,13 +2917,14 @@ function addReference(key,inputId){
     return;
   }
 
+  var type=key==="categories"?"category":key==="companies"?"company":"action_plan";
   state[key].push(v);
   $(inputId).value="";
-  saveState();
+  await dbSaveRef(type,v,"");
   renderAll();
 }
 
-function editReference(key,oldValue,field){
+async function editReference(key,oldValue,field){
   var v=prompt("Enter new name:",oldValue);
   if(v===null)return;
 
@@ -2743,14 +2934,14 @@ function editReference(key,oldValue,field){
     return;
   }
 
+  var type=key==="categories"?"category":key==="companies"?"company":"action_plan";
   state[key]=state[key].map(function(x){return x===oldValue?nv:x});
   state.tasks.forEach(function(t){if(t[field]===oldValue)t[field]=nv});
-
-  saveState();
+  await dbUpdateRef(type,oldValue,nv,"");
   renderAll();
 }
 
-function deleteReference(key,value,field){
+async function deleteReference(key,value,field){
   if(state.tasks.some(function(t){return t[field]===value})){
     alert("This option is used by tasks.");
     return;
@@ -2758,8 +2949,9 @@ function deleteReference(key,value,field){
 
   if(!confirm("Delete this option?"))return;
 
+  var type=key==="categories"?"category":key==="companies"?"company":"action_plan";
   state[key]=state[key].filter(function(x){return x!==value});
-  saveState();
+  await dbDeleteRef(type,value);
   renderAll();
 }
 
@@ -2767,7 +2959,7 @@ function toggleActionAddButton(){
   $("addActionBtn").disabled=!($("newAction").value.trim()&&$("newActionKpi").value.trim());
 }
 
-function addActionPlan(){
+async function addActionPlan(){
   var name=$("newAction").value.trim();
   var kpi=$("newActionKpi").value.trim();
 
@@ -2784,11 +2976,11 @@ function addActionPlan(){
   state.actionPlans.push({name:name,kpi:kpi});
   $("newAction").value="";
   $("newActionKpi").value="";
-  saveState();
+  await dbSaveRef("action_plan",name,kpi);
   renderAll();
 }
 
-function editActionPlan(oldName){
+async function editActionPlan(oldName){
   var item=state.actionPlans.find(function(x){return x.name===oldName});
   if(!item)return;
 
@@ -2808,11 +3000,11 @@ function editActionPlan(oldName){
     if(t.actionPlan===oldName)t.actionPlan=finalName;
   });
 
-  saveState();
+  await dbUpdateRef("action_plan",oldName,finalName,item.kpi);
   renderAll();
 }
 
-function deleteActionPlan(name){
+async function deleteActionPlan(name){
   if(state.tasks.some(function(t){return t.actionPlan===name})){
     alert("This action plan is used by tasks.");
     return;
@@ -2821,7 +3013,7 @@ function deleteActionPlan(name){
   if(!confirm("Delete this action plan?"))return;
 
   state.actionPlans=state.actionPlans.filter(function(x){return x.name!==name});
-  saveState();
+  await dbDeleteRef("action_plan",name);
   renderAll();
 }
 
@@ -2912,7 +3104,7 @@ function toggleCarryForwardSelectAll(){
     b.checked=all.checked;
   });
 }
-function confirmCarryForward(){
+async function confirmCarryForward(){
   var sourceDate=$("carryForwardSourceDate").value;
   var targetDate=$("carryForwardTargetDate").value;
   var minTargetDate=getMinimumCarryForwardDate(sourceDate);
@@ -2985,30 +3177,32 @@ function confirmCarryForward(){
     return;
   }
 
+  var newTasks=[];
   selected.forEach(function(t){
     t.carriedToDate=targetDate;
-
-    state.tasks.push(Object.assign({},t,{
+    var newTask=Object.assign({},t,{
       id:"task_"+Date.now()+"_"+Math.random().toString(16).slice(2),
-
-      // Giữ cùng Task ID để dashboard hiểu đây là cùng một logical task
       taskId:t.taskId,
-
-      // User được chọn sourceDate + n
       date:targetDate,
-
-      // Task carry forward bắt đầu lại 0%, status sẽ là To-do
       completion:0,
-
       carriedFromDate:sourceDate,
       carriedToDate:null,
       originalTaskId:t.id,
-
       note:(t.note||"")+(t.note?" | ":"")+"Carried forward from "+sourceDate
-    }));
+    });
+    state.tasks.push(newTask);
+    newTasks.push(newTask);
   });
 
-  saveState();
+  /* Update carried source tasks in DB */
+  await Promise.all(selected.map(function(t){
+    return dbUpdateTask(t.id,{carriedToDate:targetDate});
+  }));
+  /* Save new carried tasks */
+  await Promise.all(newTasks.map(function(t){
+    return dbSaveTask(t);
+  }));
+
   closeCarryForwardModal();
   renderAll();
 }
@@ -3709,7 +3903,7 @@ function renderAssignMemberTasks(){
   $("assignMemberTaskList").innerHTML=teamTaskTable(tasks);
 }
 
-function assignJobToMember(){
+async function assignJobToMember(){
   if(!isCurrentUserManager()){
     setMessage("assignMessage","This function is available for managers only.","err");
     return;
@@ -3765,9 +3959,10 @@ function assignJobToMember(){
   };
 
   state.tasks.push(task);
+  await dbSaveTask(task);
 
   if(task.ownerId!==task.createdBy){
-    addNotification(
+    await addNotification(
       task.ownerId,
       "New assigned task",
       getUserNameById(task.createdBy)+" assigned you task "+task.taskId+": "+task.name,
@@ -3775,8 +3970,6 @@ function assignJobToMember(){
       task.date
     );
   }
-
-  saveState();
 
   handleBusinessTripIfNeeded(task);
 
@@ -3924,7 +4117,14 @@ function renderAll(){
   toggleActionAddButton();
 }
 
-function startHCEDSApp(){
+async function startHCEDSApp(){
+  renderUserHeader();
+  /* Show loading state */
+  setMessage("loginMessage","Loading data...","warn");
+
+  await loadAllData();
+  setupRealtime();
+
   ensureTaskMeta();
   renderUserHeader();
   renderNotifications();
@@ -4171,9 +4371,6 @@ document.addEventListener("DOMContentLoaded", function () {
       }
     });
   }
-
-  
-  
   if (typeof closeNotificationPanelOnOutsideClick === "function") {
     document.addEventListener("click", closeNotificationPanelOnOutsideClick);
   }
