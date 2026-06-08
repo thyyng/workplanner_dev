@@ -1582,6 +1582,7 @@ async function dbUpdateRef(type,oldName,newName,kpi){
 
 /* ── Realtime subscriptions ── */
 function setupRealtime(){
+  sb.removeAllChannels();
   sb.channel("hceds-realtime")
     .on("postgres_changes",{event:"*",schema:"public",table:"tasks"},function(payload){
       if(payload.eventType==="INSERT"||payload.eventType==="UPDATE"){
@@ -4118,9 +4119,6 @@ function renderAll(){
 
 async function startHCEDSApp(){
   renderUserHeader();
-  /* Show loading state */
-  setMessage("loginMessage","Loading data...","warn");
-
   await loadAllData();
   setupRealtime();
 
