@@ -1833,7 +1833,10 @@ async function loginHCEDS(){
   try{
     var res=await fetch(EDGE_LOGIN,{
       method:"POST",
-      headers:{"Content-Type":"application/json"},
+      headers:{
+        "Content-Type":"application/json"},
+        "Authorization":"Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR6bnhqc3RlZXV3YWliZ3VrbHBoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA4NDQ2NDgsImV4cCI6MjA5NjQyMDY0OH0.oGsyqF2eUXyQEL93wodQTCmURLnxya5Z1ZuTEnGrKe8"
+      },
       body:JSON.stringify({userId:userId,pin:pin})
     });
     var json=await res.json();
