@@ -644,11 +644,10 @@ tr:last-child td{border-bottom:0}
 
 .noti-panel{
   position:absolute;
-  right:0;
+  right:-8px;
   top:100%;
   margin-top:8px;
   width:min(360px,calc(100vw - 24px));
-  max-width:calc(100vw - 16px);
   max-height:60vh;
   overflow:auto;
   background:var(--card);
@@ -719,6 +718,73 @@ tr.task-highlight td:last-child{
 /* Task ID + clickable */
 .task-link-row{cursor:pointer}
 .task-link-row:hover{background:var(--pink-pale)}
+
+/* ---- Sortable columns ---- */
+th.sortable{
+  cursor:pointer;
+  user-select:none;
+  white-space:nowrap;
+}
+th.sortable:hover{
+  background:var(--line-2);
+  color:var(--pink);
+}
+th.sortable .sort-icon{
+  display:inline-block;
+  margin-left:4px;
+  font-size:10px;
+  color:var(--text3);
+  vertical-align:middle;
+}
+th.sortable.sort-asc .sort-icon::after{content:"▲"}
+th.sortable.sort-desc .sort-icon::after{content:"▼"}
+th.sortable:not(.sort-asc):not(.sort-desc) .sort-icon::after{content:"⇅"}
+
+/* ---- Pagination ---- */
+.pagination-bar{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  flex-wrap:wrap;
+  gap:10px;
+  padding:12px 4px 2px;
+}
+.pagination-info{
+  font-size:12.5px;
+  color:var(--muted);
+  font-weight:600;
+}
+.pagination-btns{
+  display:flex;
+  gap:5px;
+  flex-wrap:wrap;
+}
+.page-btn{
+  min-width:34px;
+  height:34px;
+  padding:0 10px;
+  border-radius:7px;
+  font-size:13px;
+  font-weight:700;
+  border:1.5px solid var(--line);
+  background:var(--card);
+  color:var(--brown2);
+  cursor:pointer;
+  transition:.13s;
+}
+.page-btn:hover:not(:disabled):not(.active){
+  border-color:var(--pink);
+  color:var(--pink);
+}
+.page-btn.active{
+  background:var(--pink);
+  color:#fff;
+  border-color:var(--pink);
+}
+.page-btn:disabled{
+  opacity:.4;
+  cursor:not-allowed;
+}
 
 .task-id-pill{
   display:inline-block;
@@ -1410,6 +1476,14 @@ var calendarMonthDate=new Date(selectedDate+"T00:00:00");
 var dashboardSelectedType="all";
 var teamDashboardSelectedType="all";
 
+/* ---- Pagination & Sort State ---- */
+var TASKS_PER_PAGE=12;
+
+/* sortState: { col: "date"|"name"|..., dir: "asc"|"desc" } keyed by tableId */
+var tableSortState={};
+/* currentPage keyed by tableId */
+var tablePageState={};
+
 var enterpriseChartColors=[
   "#d4607a","#3a7040","#b07848","#3a5a9a","#7a4a28",
   "#b03020","#6a4030","#4e2e18","#7a4a90","#c06020"
@@ -1592,6 +1666,7 @@ async function dbUpdateRef(type,oldName,newName,kpi){
 
 /* ── Polling (replaces Realtime — RLS blocks WebSocket) ── */
 var _pollInterval=null;
+var _pollRunning=false;
 var _lastTaskCount=0;
 var _lastNotiCount=0;
 
@@ -1605,7 +1680,8 @@ function setupRealtime(){
   /* Poll every 30 seconds */
   _pollInterval=setInterval(async function(){
     if(!state.currentUserId)return;
-
+    if(_pollRunning)return; /* skip if previous poll still running */
+    _pollRunning=true;
     try{
       /* Check tasks */
       var tasksRes=await apiCall("get-tasks");
@@ -1646,6 +1722,8 @@ function setupRealtime(){
       }
     }catch(e){
       console.error("Poll error:",e);
+    }finally{
+      _pollRunning=false;
     }
   },30000);
 
@@ -1867,7 +1945,7 @@ function ensureTaskMeta(){
 
 function getAssignmentText(t){
   var creatorId=t.createdBy||t.assignedBy||t.ownerId;
-  return "Created by "+getUserNameById(creatorId);
+  return getUserNameById(creatorId);
 }
 
 function getLogicalTaskKey(t){
@@ -2125,7 +2203,9 @@ function populateTeamSelectOptions(){
   var team=$("teamFilterMember");
   if(team){
     var c=team.value;
-    team.innerHTML='<option value="All">All</option>'+members.map(function(m){
+    /* Show all users in team filter — all members can see full team */
+    var allMembers=state.users;
+    team.innerHTML='<option value="All">All</option>'+allMembers.map(function(m){
       return '<option value="'+m.id+'">'+escapeHtml(m.name)+'</option>';
     }).join("");
     if([].slice.call(team.options).some(function(o){return o.value===c}))team.value=c;
@@ -2310,43 +2390,55 @@ function assignHistoryTable(tasks){
     return '<div class="message show warn">No assign history found.</div>';
   }
 
+  var tid="assignHistoryTable";
+  var rfn="renderAssignHistory";
+
+  var sorted=getSortedTasks(tasks,tid,"date","desc");
+  var pag=paginateItems(sorted,tid);
+  var pageItems=pag.items;
+
+  var sh=function(label,col){return sortableHeader(label,col,tid,rfn);};
+
   return '<div class="table-wrap"><table><thead><tr>'+
-    '<th>Assigned Time</th>'+
-    '<th>Task ID</th>'+
-    '<th>Team Member</th>'+
-    '<th>Task Date</th>'+
-    '<th>Task Name</th>'+
+    sh("Task ID","taskId")+
+    sh("Team Member","member")+
+    sh("Task Date","date")+
+    '<th>Assigned Date</th>'+
+    sh("Task Name","name")+
+    sh("Category","category")+
+    sh("Company","company")+
+    sh("Work Location","workLocation")+
+    sh("Allocation","allocation")+
+    sh("Completion","completion")+
+    sh("Status","status")+
+    '<th>Carry Info</th>'+
+    sh("Action Plan","actionPlan")+
     '<th>Assigned By</th>'+
-    '<th>Company</th>'+
-    '<th>Category</th>'+
-    '<th>Action Plan</th>'+
-    '<th>Allocation</th>'+
-    '<th>Completion</th>'+
-    '<th>Status</th>'+
-    '<th>Work Location</th>'+
     '<th>Note</th>'+
   '</tr></thead><tbody>'+
-  tasks.map(function(t){
+  pageItems.map(function(t){
     var s=getTaskStatus(t);
 
     return '<tr class="task-link-row" onclick="goToTaskCalendarDate(\''+escapeForAction(t.date)+'\',\''+escapeForAction(t.taskId||t.id)+'\')">'+
-      '<td data-label="Assigned Time">'+escapeHtml(formatNotificationTime(t.assignedAt))+'</td>'+
       '<td data-label="Task ID"><span class="task-id-pill">'+escapeHtml(t.taskId||t.id)+'</span></td>'+
       '<td data-label="Team Member">'+escapeHtml(getUserNameById(t.ownerId))+'</td>'+
       '<td data-label="Task Date">'+formatNiceDate(t.date)+'</td>'+
+      '<td data-label="Assigned Date">'+escapeHtml(formatNotificationTime(t.assignedAt))+'</td>'+
       '<td data-label="Task Name"><strong>'+escapeHtml(t.name)+'</strong></td>'+
-      '<td data-label="Assigned By">'+escapeHtml(getUserNameById(t.assignedBy))+'</td>'+
-      '<td data-label="Company">'+escapeHtml(t.company)+'</td>'+
       '<td data-label="Category">'+escapeHtml(t.category)+'</td>'+
-      '<td data-label="Action Plan">'+escapeHtml(t.actionPlan)+'</td>'+
+      '<td data-label="Company">'+escapeHtml(t.company)+'</td>'+
+      '<td data-label="Work Location">'+escapeHtml(t.workLocation||"At Office (VCO)")+'</td>'+
       '<td data-label="Allocation">'+rounded(t.allocation)+'%</td>'+
       '<td data-label="Completion">'+rounded(t.completion)+'%</td>'+
       '<td data-label="Status"><span class="status '+statusClass(s)+'">'+s+'</span></td>'+
-      '<td data-label="Work Location">'+escapeHtml(t.workLocation||"At Office (VCO)")+'</td>'+
+      '<td data-label="Carry Info">'+carryInfo(t)+'</td>'+
+      '<td data-label="Action Plan">'+escapeHtml(t.actionPlan)+'</td>'+
+      '<td data-label="Assigned By">'+escapeHtml(getUserNameById(t.assignedBy))+'</td>'+
       '<td data-label="Note">'+escapeHtml(t.note||"-")+'</td>'+
     '</tr>';
   }).join("")+
-  '</tbody></table></div>';
+  '</tbody></table></div>'+
+  paginationBar(tid,pag,rfn);
 }
 function renderAssignHistory(){
   if(!$("assignHistoryList"))return;
@@ -2521,34 +2613,137 @@ function dateTaskSummary(date,ownerId){
   ownerId=ownerId||state.currentUserId;
   var tasks=state.tasks.filter(function(t){return t.ownerId===ownerId&&t.date===date});
   var allocation=dailyAllocation(date,null,ownerId);
+  var done=workDone(tasks);
 
   return '<div class="info-box">'+
     '<span>Total Allocation: '+allocation+'%</span>'+
     '<span>Remaining: '+Math.max(0,rounded(100-allocation))+'%</span>'+
+    '<span>Work Done: '+done+'%</span>'+
     '<span>Tasks: '+tasks.length+'</span>'+
   '</div>';
 }
 
+/* ---- Sort helpers ---- */
+function getSortedTasks(tasks, tableId, defaultCol, defaultDir){
+  var s=tableSortState[tableId];
+  var col=s?s.col:defaultCol;
+  var dir=s?s.dir:defaultDir;
+
+  var getVal=function(t,c){
+    if(c==="date")return t.date||"";
+    if(c==="name")return(t.name||"").toLowerCase();
+    if(c==="category")return(t.category||"").toLowerCase();
+    if(c==="company")return(t.company||"").toLowerCase();
+    if(c==="actionPlan")return(t.actionPlan||"").toLowerCase();
+    if(c==="allocation")return Number(t.allocation||0);
+    if(c==="completion")return Number(t.completion||0);
+    if(c==="status")return getTaskStatus(t).toLowerCase();
+    if(c==="workLocation")return(t.workLocation||"").toLowerCase();
+    if(c==="member")return(getUserNameById(t.ownerId)||"").toLowerCase();
+    if(c==="taskId")return(t.taskId||t.id||"").toLowerCase();
+    return"";
+  };
+
+  return tasks.slice().sort(function(a,b){
+    var av=getVal(a,col), bv=getVal(b,col);
+    var cmp=typeof av==="number"?(av-bv):String(av).localeCompare(String(bv));
+    return dir==="asc"?cmp:-cmp;
+  });
+}
+
+function setTableSort(tableId, col, renderFn){
+  var s=tableSortState[tableId];
+  if(s && s.col===col){
+    tableSortState[tableId]={col:col,dir:s.dir==="asc"?"desc":"asc"};
+  }else{
+    tableSortState[tableId]={col:col,dir:"asc"};
+  }
+  tablePageState[tableId]=1;
+  renderFn();
+}
+
+function sortableHeader(label, col, tableId, renderFnName){
+  var s=tableSortState[tableId];
+  var isActive=s && s.col===col;
+  var cls="sortable"+(isActive?" sort-"+(s.dir):"");
+  return '<th class="'+cls+'" onclick="setTableSort(\''+tableId+'\',\''+col+'\','+renderFnName+')">'+label+' <span class="sort-icon"></span></th>';
+}
+
+/* ---- Pagination helper ---- */
+function paginateItems(items, tableId){
+  var page=tablePageState[tableId]||1;
+  var total=items.length;
+  var totalPages=Math.max(1,Math.ceil(total/TASKS_PER_PAGE));
+  if(page>totalPages)page=1;
+  tablePageState[tableId]=page;
+
+  var start=(page-1)*TASKS_PER_PAGE;
+  var end=Math.min(start+TASKS_PER_PAGE,total);
+  var pageItems=items.slice(start,end);
+
+  return{items:pageItems,page:page,totalPages:totalPages,total:total,start:start,end:end};
+}
+
+function paginationBar(tableId, pag, renderFnName){
+  if(pag.totalPages<=1)return'<div class="pagination-info">Showing '+pag.total+' task(s)</div>';
+
+  var btns='';
+  btns+='<button class="page-btn" onclick="goPage(\''+tableId+'\',1,'+renderFnName+')" '+(pag.page===1?'disabled':'')+'>«</button>';
+  btns+='<button class="page-btn" onclick="goPage(\''+tableId+'\','+(pag.page-1)+','+renderFnName+')" '+(pag.page===1?'disabled':'')+'>‹</button>';
+
+  var start=Math.max(1,pag.page-2);
+  var end=Math.min(pag.totalPages,pag.page+2);
+  if(start>1)btns+='<button class="page-btn" disabled>…</button>';
+  for(var p=start;p<=end;p++){
+    btns+='<button class="page-btn'+(p===pag.page?" active":"")+'" onclick="goPage(\''+tableId+'\','+p+','+renderFnName+')">'+p+'</button>';
+  }
+  if(end<pag.totalPages)btns+='<button class="page-btn" disabled>…</button>';
+
+  btns+='<button class="page-btn" onclick="goPage(\''+tableId+'\','+(pag.page+1)+','+renderFnName+')" '+(pag.page===pag.totalPages?'disabled':'')+'>›</button>';
+  btns+='<button class="page-btn" onclick="goPage(\''+tableId+'\','+pag.totalPages+','+renderFnName+')" '+(pag.page===pag.totalPages?'disabled':'')+'>»</button>';
+
+  return '<div class="pagination-bar">'+
+    '<span class="pagination-info">Showing '+(pag.start+1)+'–'+pag.end+' of '+pag.total+' task(s)</span>'+
+    '<div class="pagination-btns">'+btns+'</div>'+
+  '</div>';
+}
+
+function goPage(tableId, page, renderFn){
+  tablePageState[tableId]=page;
+  renderFn();
+}
+
+/* ---- Task Table (My Dashboard) ---- */
 function taskTable(tasks,compact){
   if(!tasks.length)return'<div class="message show warn">No tasks found.</div>';
 
+  var tid=compact?"dashTaskTable":"calTaskTable";
+  var rfn=compact?"renderDashboard":"renderCalendar";
+
+  var sorted=getSortedTasks(tasks,tid,"date","asc");
+  var pag=paginateItems(sorted,tid);
+  var pageItems=pag.items;
+
+  var s=tableSortState[tid]||{};
+  var sh=function(label,col){return sortableHeader(label,col,tid,rfn);};
+
   return '<div class="table-wrap"><table><thead><tr>'+
-    '<th>Task ID</th>'+
-    '<th>Date</th>'+
-    '<th>Task Name</th>'+
-    '<th>Assignment</th>'+
-    '<th>Work Location</th>'+
-    '<th>Company</th>'+
-    '<th>Category</th>'+
-    '<th>Action Plan</th>'+
-    '<th>Allocation</th>'+
-    '<th>Completion</th>'+
-    '<th>Status</th>'+
+    sh("Task ID","taskId")+
+    sh("Date","date")+
+    sh("Task Name","name")+
+    sh("Category","category")+
+    sh("Company","company")+
+    sh("Work Location","workLocation")+
+    sh("Allocation","allocation")+
+    sh("Completion","completion")+
+    sh("Status","status")+
     '<th>Carry Info</th>'+
-    '<th>'+(compact?"Note":"Action")+'</th>'+
+    sh("Action Plan","actionPlan")+
+    '<th>'+(compact?"":"Action")+'</th>'+
+    '<th>Created</th>'+
   '</tr></thead><tbody>'+
-  tasks.map(function(t){
-    var s=getTaskStatus(t);
+  pageItems.map(function(t){
+    var st=getTaskStatus(t);
     var taskKey=t.taskId||t.id;
     var rowAttrs=' data-calendar-task-id="'+escapeHtml(taskKey)+'" data-task-date="'+escapeHtml(t.date)+'"';
     if(compact){rowAttrs+=' class="task-link-row" onclick="goToTaskCalendarDate(\''+escapeForAction(t.date)+'\',\''+escapeForAction(taskKey)+'\')"';}
@@ -2556,52 +2751,60 @@ function taskTable(tasks,compact){
       '<td data-label="Task ID"><span class="task-id-pill">'+escapeHtml(t.taskId||t.id)+'</span></td>'+
       '<td data-label="Date">'+formatNiceDate(t.date)+'</td>'+
       '<td data-label="Task Name"><strong>'+escapeHtml(t.name)+'</strong></td>'+
-      '<td data-label="Assignment">'+escapeHtml(getAssignmentText(t))+'</td>'+
-      '<td data-label="Work Location">'+escapeHtml(t.workLocation||"At Office (VCO)")+'</td>'+
-      '<td data-label="Company">'+escapeHtml(t.company)+'</td>'+
       '<td data-label="Category">'+escapeHtml(t.category)+'</td>'+
-      '<td data-label="Action Plan">'+escapeHtml(t.actionPlan)+'</td>'+
+      '<td data-label="Company">'+escapeHtml(t.company)+'</td>'+
+      '<td data-label="Work Location">'+escapeHtml(t.workLocation||"At Office (VCO)")+'</td>'+
       '<td data-label="Allocation">'+rounded(t.allocation)+'%</td>'+
       '<td data-label="Completion">'+
         (compact
           ? rounded(t.completion)+"%"
           : '<input type="number" min="0" max="100" value="'+rounded(t.completion)+'" onchange="updateCompletion(\''+t.id+'\',this.value)">')+
       '</td>'+
-      '<td data-label="Status"><span class="status '+statusClass(s)+'">'+s+'</span></td>'+
+      '<td data-label="Status"><span class="status '+statusClass(st)+'">'+st+'</span></td>'+
       '<td data-label="Carry Info">'+carryInfo(t)+'</td>'+
-      '<td data-label="'+(compact?"Note":"Action")+'">'+
+      '<td data-label="Action Plan">'+escapeHtml(t.actionPlan)+'</td>'+
+      '<td data-label="Action">'+
         (compact
-          ? escapeHtml(t.note||"-")
+          ? ''
           : '<div class="actions"><button class="success" onclick="markDone(\''+t.id+'\')">Done</button><button class="secondary" onclick="openEditTask(\''+t.id+'\')">Edit</button></div>')+
       '</td>'+
+      '<td data-label="Created">'+escapeHtml(getAssignmentText(t))+'</td>'+
     '</tr>';
   }).join("")+
-  '</tbody></table></div>';
+  '</tbody></table></div>'+
+  paginationBar(tid,pag,rfn);
 }
 
-function teamTaskTable(tasks){
+function teamTaskTable(tasks,tableId,renderFnName){
   if(!tasks.length)return'<div class="message show warn">No tasks found.</div>';
 
+  tableId=tableId||"teamTaskTable";
+  renderFnName=renderFnName||"renderTeamDashboard";
+
+  var sorted=getSortedTasks(tasks,tableId,"date","asc");
+  var pag=paginateItems(sorted,tableId);
+  var pageItems=pag.items;
+
+  var sh=function(label,col){return sortableHeader(label,col,tableId,renderFnName);};
+
   return '<div class="table-wrap"><table><thead><tr>'+
-    '<th>Task ID</th>'+
-    '<th>Member</th>'+
-    '<th>Date</th>'+
-    '<th>Task Name</th>'+
-    '<th>Assignment</th>'+
-    '<th>Work Location</th>'+
-    '<th>Company</th>'+
-    '<th>Category</th>'+
-    '<th>Action Plan</th>'+
-    '<th>Allocation</th>'+
-    '<th>Completion</th>'+
-    '<th>Status</th>'+
+    sh("Task ID","taskId")+
+    sh("Member","member")+
+    sh("Date","date")+
+    sh("Task Name","name")+
+    sh("Category","category")+
+    sh("Company","company")+
+    sh("Work Location","workLocation")+
+    sh("Allocation","allocation")+
+    sh("Completion","completion")+
+    sh("Status","status")+
     '<th>Carry Info</th>'+
+    sh("Action Plan","actionPlan")+
+    '<th>Created</th>'+
   '</tr></thead><tbody>'+
-  tasks.map(function(t){
+  pageItems.map(function(t){
     var s=getTaskStatus(t);
     var user=getCurrentUser();
-    /* Staff: click được task của mình hoặc được assign cho mình
-       Manager: chỉ click task của chính mình */
     var canClick=user && (
       t.ownerId===state.currentUserId ||
       (!user.isManager && t.assignedBy && t.ownerId===state.currentUserId)
@@ -2614,18 +2817,19 @@ function teamTaskTable(tasks){
       '<td data-label="Member">'+escapeHtml(getUserNameById(t.ownerId))+'</td>'+
       '<td data-label="Date">'+formatNiceDate(t.date)+'</td>'+
       '<td data-label="Task Name"><strong>'+escapeHtml(t.name)+'</strong></td>'+
-      '<td data-label="Assignment">'+escapeHtml(getAssignmentText(t))+'</td>'+
-      '<td data-label="Work Location">'+escapeHtml(t.workLocation||"At Office (VCO)")+'</td>'+
-      '<td data-label="Company">'+escapeHtml(t.company)+'</td>'+
       '<td data-label="Category">'+escapeHtml(t.category)+'</td>'+
-      '<td data-label="Action Plan">'+escapeHtml(t.actionPlan)+'</td>'+
+      '<td data-label="Company">'+escapeHtml(t.company)+'</td>'+
+      '<td data-label="Work Location">'+escapeHtml(t.workLocation||"At Office (VCO)")+'</td>'+
       '<td data-label="Allocation">'+rounded(t.allocation)+'%</td>'+
       '<td data-label="Completion">'+rounded(t.completion)+'%</td>'+
       '<td data-label="Status"><span class="status '+statusClass(s)+'">'+s+'</span></td>'+
       '<td data-label="Carry Info">'+carryInfo(t)+'</td>'+
+      '<td data-label="Action Plan">'+escapeHtml(t.actionPlan)+'</td>'+
+      '<td data-label="Created">'+escapeHtml(getAssignmentText(t))+'</td>'+
     '</tr>';
   }).join("")+
-  '</tbody></table></div>';
+  '</tbody></table></div>'+
+  paginationBar(tableId,pag,renderFnName);
 }
 
 async function updateCompletion(id,value){
@@ -3301,6 +3505,7 @@ function getDashboardTasksByType(type,tasks){
 
 function setDashboardSelectedType(type){
   dashboardSelectedType=type;
+  tablePageState["dashTaskTable"]=1;
   renderDashboard();
 }
 
@@ -3823,10 +4028,11 @@ function getTeamFilteredTasks(){
   var member=$("teamFilterMember").value;
   var company=$("teamFilterCompany").value;
   var status=$("teamFilterStatus").value;
-  var ids=getAccessibleTeamMemberIds();
+  /* All users can see all team tasks */
+  var allIds=state.users.map(function(u){return u.id});
 
   return state.tasks
-    .filter(function(t){return ids.includes(t.ownerId)})
+    .filter(function(t){return allIds.includes(t.ownerId)})
     .filter(function(t){return t.date>=from&&t.date<=to})
     .filter(function(t){return member==="All"||t.ownerId===member})
     .filter(function(t){return company==="All"||t.company===company})
@@ -3836,6 +4042,7 @@ function getTeamFilteredTasks(){
 
 function setTeamDashboardSelectedType(type){
   teamDashboardSelectedType=type;
+  tablePageState["teamTaskTable"]=1;
   renderTeamDashboard();
 }
 
@@ -3940,11 +4147,11 @@ function renderAssignMemberTasks(){
   $("assignAllocationSummary").textContent="Allocated: "+allocated+"% / Remaining: "+Math.max(0,remaining)+"%";
 
   if(allocated>=100){
-    $("assignMemberTaskList").innerHTML='<div class="message show warn">This member is already allocated 100% on this date. Please choose another date.</div>'+teamTaskTable(tasks);
+    $("assignMemberTaskList").innerHTML='<div class="message show warn">This member is already allocated 100% on this date. Please choose another date.</div>'+teamTaskTable(tasks,"assignMemberTaskTable","renderAssignMemberTasks");
     return;
   }
 
-  $("assignMemberTaskList").innerHTML=teamTaskTable(tasks);
+  $("assignMemberTaskList").innerHTML=teamTaskTable(tasks,"assignMemberTaskTable","renderAssignMemberTasks");
 }
 
 async function assignJobToMember(){
@@ -4333,6 +4540,7 @@ document.addEventListener("DOMContentLoaded", function () {
     var el = $(id);
     if (el) {
       el.addEventListener("change", function () {
+        tablePageState["dashTaskTable"]=1;
         requestAnimationFrame(function () {
           renderDashboard();
         });
@@ -4352,6 +4560,7 @@ document.addEventListener("DOMContentLoaded", function () {
     var el=$(id);
     if(el){
       el.addEventListener("change", function(){
+        tablePageState["assignHistoryTable"]=1;
         requestAnimationFrame(function(){
           renderAssignHistory();
         });
@@ -4368,6 +4577,7 @@ document.addEventListener("DOMContentLoaded", function () {
     var el = $(id);
     if (el) {
       el.addEventListener("change", function () {
+        tablePageState["teamTaskTable"]=1;
         requestAnimationFrame(function () {
           renderTeamDashboard();
         });
