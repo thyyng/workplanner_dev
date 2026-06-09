@@ -305,12 +305,20 @@ textarea{
 
 table{
   width:100%;
+  min-width:0;
   border-collapse:separate;
   border-spacing:0;
   background:var(--card);
   border:1px solid var(--line);
   border-radius:12px;
   overflow:hidden;
+  table-layout:auto;
+}
+
+.table-wrap{
+  width:100%;
+  overflow-x:auto;
+  border-radius:12px;
 }
 
 th,td{
@@ -1580,48 +1588,66 @@ async function dbUpdateRef(type,oldName,newName,kpi){
   }catch(e){console.error(e);}
 }
 
-/* ── Realtime subscriptions ── */
+/* ── Polling (replaces Realtime — RLS blocks WebSocket) ── */
+var _pollInterval=null;
+var _lastTaskCount=0;
+var _lastNotiCount=0;
+
 function setupRealtime(){
+  /* Remove any existing Supabase realtime channels */
   sb.removeAllChannels();
-  sb.channel("hceds-realtime")
-    .on("postgres_changes",{event:"*",schema:"public",table:"tasks"},function(payload){
-      if(payload.eventType==="INSERT"||payload.eventType==="UPDATE"){
-        var t=dbTaskToState(payload.new);
-        var idx=state.tasks.findIndex(function(x){return x.id===t.id});
-        if(idx>=0)state.tasks[idx]=t;
-        else state.tasks.push(t);
-      }else if(payload.eventType==="DELETE"){
-        state.tasks=state.tasks.filter(function(x){return x.id!==payload.old.id});
+
+  /* Clear existing poll */
+  if(_pollInterval)clearInterval(_pollInterval);
+
+  /* Poll every 30 seconds */
+  _pollInterval=setInterval(async function(){
+    if(!state.currentUserId)return;
+
+    try{
+      /* Check tasks */
+      var tasksRes=await apiCall("get-tasks");
+      if(tasksRes.success && tasksRes.data){
+        var newCount=tasksRes.data.length;
+        var changed=newCount!==_lastTaskCount;
+
+        if(!changed){
+          /* Deep check — compare by id+completion */
+          var newIds=tasksRes.data.map(function(t){return t.id+":"+t.completion+":"+t.carried_to_date}).sort().join(",");
+          var oldIds=state.tasks.map(function(t){return t.id+":"+t.completion+":"+t.carriedToDate}).sort().join(",");
+          changed=newIds!==oldIds;
+        }
+
+        if(changed){
+          state.tasks=tasksRes.data.map(dbTaskToState);
+          _lastTaskCount=newCount;
+          renderAll();
+        }
       }
-      renderAll();
-    })
-    .on("postgres_changes",{event:"*",schema:"public",table:"notifications"},function(payload){
-      if(payload.new && payload.new.user_id!==state.currentUserId)return;
-      if(payload.eventType==="INSERT"){
-        var n=payload.new;
-        state.notifications.unshift({
-          id:n.id,userId:n.user_id,title:n.title,message:n.message,
-          taskId:n.task_id||"",taskDate:n.task_date||"",read:n.read||false,createdAt:n.created_at
-        });
-        renderNotifications();
-      }else if(payload.eventType==="UPDATE"){
-        var idx2=state.notifications.findIndex(function(x){return x.id===payload.new.id});
-        if(idx2>=0)state.notifications[idx2].read=payload.new.read;
-        renderNotifications();
+
+      /* Check notifications */
+      var notiRes=await apiCall("get-notifications",{userId:state.currentUserId});
+      if(notiRes.success && notiRes.data){
+        var newUnread=notiRes.data.filter(function(n){return !n.read}).length;
+        var oldUnread=state.notifications.filter(function(n){return !n.read}).length;
+
+        if(notiRes.data.length!==_lastNotiCount || newUnread!==oldUnread){
+          state.notifications=notiRes.data.map(function(n){
+            return{
+              id:n.id,userId:n.user_id,title:n.title,message:n.message,
+              taskId:n.task_id||"",taskDate:n.task_date||"",read:n.read||false,createdAt:n.created_at
+            };
+          });
+          _lastNotiCount=notiRes.data.length;
+          renderNotifications();
+        }
       }
-    })
-    .on("postgres_changes",{event:"*",schema:"public",table:"ref_data"},function(payload){
-      /* Reload all refs on any change via Edge Function */
-      apiCall("get-refs").then(function(res){
-        if(!res.success||!res.data)return;
-        state.categories=res.data.filter(function(r){return r.type==="category"}).map(function(r){return r.name});
-        state.companies=res.data.filter(function(r){return r.type==="company"}).map(function(r){return r.name});
-        state.actionPlans=res.data.filter(function(r){return r.type==="action_plan"}).map(function(r){return{name:r.name,kpi:r.kpi||""}});
-        renderSelectOptions();
-        renderReferences();
-      });
-    })
-    .subscribe();
+    }catch(e){
+      console.error("Poll error:",e);
+    }
+  },30000);
+
+  console.log("Polling started — sync every 30s");
 }
 
 function normalizeActionPlans(list){
@@ -2048,7 +2074,9 @@ function logoutHCEDS(){
   state.categories=[];
   state.actionPlans=[];
   state.companies=[];
-  /* Remove realtime channel */
+  /* Stop polling + remove realtime */
+  if(_pollInterval)clearInterval(_pollInterval);
+  _pollInterval=null;
   sb.removeAllChannels();
 
   populateLoginUsers();
@@ -2278,7 +2306,7 @@ function assignHistoryTable(tasks){
     return '<div class="message show warn">No assign history found.</div>';
   }
 
-  return '<table><thead><tr>'+
+  return '<div class="table-wrap"><table><thead><tr>'+
     '<th>Assigned Time</th>'+
     '<th>Task ID</th>'+
     '<th>Team Member</th>'+
@@ -2314,7 +2342,7 @@ function assignHistoryTable(tasks){
       '<td data-label="Note">'+escapeHtml(t.note||"-")+'</td>'+
     '</tr>';
   }).join("")+
-  '</tbody></table>';
+  '</tbody></table></div>';
 }
 function renderAssignHistory(){
   if(!$("assignHistoryList"))return;
@@ -2500,7 +2528,7 @@ function dateTaskSummary(date,ownerId){
 function taskTable(tasks,compact){
   if(!tasks.length)return'<div class="message show warn">No tasks found.</div>';
 
-  return '<table><thead><tr>'+
+  return '<div class="table-wrap"><table><thead><tr>'+
     '<th>Task ID</th>'+
     '<th>Date</th>'+
     '<th>Task Name</th>'+
@@ -2544,13 +2572,13 @@ function taskTable(tasks,compact){
       '</td>'+
     '</tr>';
   }).join("")+
-  '</tbody></table>';
+  '</tbody></table></div>';
 }
 
 function teamTaskTable(tasks){
   if(!tasks.length)return'<div class="message show warn">No tasks found.</div>';
 
-  return '<table><thead><tr>'+
+  return '<div class="table-wrap"><table><thead><tr>'+
     '<th>Task ID</th>'+
     '<th>Member</th>'+
     '<th>Date</th>'+
@@ -2584,7 +2612,7 @@ function teamTaskTable(tasks){
       '<td data-label="Carry Info">'+carryInfo(t)+'</td>'+
     '</tr>';
   }).join("")+
-  '</tbody></table>';
+  '</tbody></table></div>';
 }
 
 async function updateCompletion(id,value){
@@ -3061,7 +3089,7 @@ function renderCarryForwardTaskList(tasks){
   }
 
   $("carryForwardTaskList").innerHTML=
-    '<table><thead><tr>'+
+    '<div class="table-wrap"><table><thead><tr>'+
       '<th><label style="margin:0;display:flex;align-items:center;gap:6px;"><input id="carryForwardSelectAll" type="checkbox" style="width:auto;" onchange="toggleCarryForwardSelectAll()">Select</label></th>'+
       '<th>Task ID</th>'+
       '<th>Task Name</th>'+
@@ -3093,7 +3121,7 @@ function renderCarryForwardTaskList(tasks){
         '<td data-label="Carry Info">'+carryInfo(t)+'</td>'+
       '</tr>';
     }).join("")+
-    '</tbody></table>';
+    '</tbody></table></div>';
 }
 
 function toggleCarryForwardSelectAll(){
@@ -4330,7 +4358,6 @@ document.addEventListener("DOMContentLoaded", function () {
       });
     }
   });
-
   [
     "assignMember",
     "assignDate"
@@ -4359,7 +4386,6 @@ document.addEventListener("DOMContentLoaded", function () {
       }
     });
   }
-
   var carryForwardModal = $("carryForwardModal");
   if (carryForwardModal) {
     carryForwardModal.addEventListener("click", function (e) {
@@ -4367,10 +4393,7 @@ document.addEventListener("DOMContentLoaded", function () {
         closeCarryForwardModal();
       }
     });
-  }
-
-  
-  
+  }  
   if (typeof closeNotificationPanelOnOutsideClick === "function") {
     document.addEventListener("click", closeNotificationPanelOnOutsideClick);
   }
