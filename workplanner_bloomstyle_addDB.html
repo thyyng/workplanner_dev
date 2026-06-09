@@ -801,7 +801,10 @@ th.sortable:not(.sort-asc):not(.sort-desc) .sort-icon::after{content:"⇅"}
 }
 /* ---- Chart styles ---- */
 .chart-card{background:var(--card);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);padding:20px;margin-bottom:20px;}
-.chart-grid-2{display:grid;grid-template-columns:repeat(2,minmax(460px,1fr));gap:20px;align-items:start;}
+.chart-card.cf-active{border-color:var(--pink);box-shadow:0 0 0 2px var(--pink-pale),var(--shadow);}
+.cf-clear-btn{display:none;font-size:11.5px;font-weight:700;color:var(--pink);background:var(--pink-pale);border:1px solid var(--pink-l);border-radius:6px;padding:3px 10px;cursor:pointer;margin-left:8px;}
+.cf-clear-btn.show{display:inline-block;}
+.chart-grid-2{display:grid;grid-template-columns:repeat(2,minmax(460px,1fr));gap:20px;align-items:stretch;}
 .chart-card .card-title{border-bottom:1px solid var(--line-2);margin-bottom:14px;}
 .chart-scroll{width:100%;overflow:hidden;padding:4px 2px 8px;}
 .chart-scroll-center{display:flex;justify-content:center;}
@@ -942,8 +945,8 @@ th.sortable:not(.sort-asc):not(.sort-desc) .sort-icon::after{content:"⇅"}
           </div>
         </div>
         <div class="actions" style="margin-top:16px">
-          <button class="ghost" onclick="setDefaultDashboardFilters();renderDashboard()">Reset Filters</button>
-          <button class="secondary" onclick="exportMyDashboardCsv()">Export CSV</button>
+          <button class="ghost" onclick="setDefaultDashboardFilters();clearAllDashChartFilters()">Reset Filters</button>
+          <button class="secondary" onclick="exportMyDashboardCsv()">Export XLSX</button>
         </div>
       </div>
 
@@ -983,20 +986,20 @@ th.sortable:not(.sort-asc):not(.sort-desc) .sort-icon::after{content:"⇅"}
       </div>
 
       <div class="chart-grid-2">
-        <div class="chart-card">
-          <div class="card-title"><h3>Task Distribution by Category</h3></div>
+        <div class="chart-card" id="dashCategoryChartCard">
+          <div class="card-title"><h3>Task Distribution by Category<button class="cf-clear-btn" id="dashCfClearCategory" onclick="clearDashChartFilter('category')">✕ Clear</button></h3></div>
           <div class="chart-scroll chart-scroll-center"><canvas id="categoryPieChart" class="chart-canvas chart-pie" width="420" height="320"></canvas></div>
           <div id="categoryPieLegend" class="chart-legend"></div>
         </div>
-        <div class="chart-card">
-          <div class="card-title"><h3>Task Distribution by Action Plan</h3></div>
+        <div class="chart-card" id="dashActionPlanChartCard">
+          <div class="card-title"><h3>Task Distribution by Action Plan<button class="cf-clear-btn" id="dashCfClearActionPlan" onclick="clearDashChartFilter('actionPlan')">✕ Clear</button></h3></div>
           <div class="chart-scroll chart-scroll-center"><canvas id="actionPlanPieChart" class="chart-canvas chart-pie" width="420" height="320"></canvas></div>
           <div id="actionPlanPieLegend" class="chart-legend"></div>
         </div>
       </div>
 
-      <div class="chart-card">
-        <div class="card-title"><h3>Tasks by Company</h3></div>
+      <div class="chart-card" id="dashCompanyChartCard">
+        <div class="card-title"><h3>Tasks by Company<button class="cf-clear-btn" id="dashCfClearCompany" onclick="clearDashChartFilter('company')">✕ Clear</button></h3></div>
         <div class="chart-scroll"><canvas id="companyBarChart" class="chart-canvas chart-bar" width="980" height="360"></canvas></div>
         <div id="companyBarLegend" class="chart-legend"></div>
       </div>
@@ -1206,8 +1209,8 @@ th.sortable:not(.sort-asc):not(.sort-desc) .sort-icon::after{content:"⇅"}
         </div>
 
         <div class="actions" style="margin-top:16px">
-          <button class="ghost" onclick="setDefaultTeamDashboardFilters();renderTeamDashboard()">Reset Filters</button>
-          <button class="secondary" onclick="exportTeamDashboardCsv()">Export CSV</button>
+          <button class="ghost" onclick="setDefaultTeamDashboardFilters();clearAllTeamChartFilters()">Reset Filters</button>
+          <button class="secondary" onclick="exportTeamDashboardCsv()">Export XLSX</button>
         </div>
       </div>
 
@@ -1247,20 +1250,20 @@ th.sortable:not(.sort-asc):not(.sort-desc) .sort-icon::after{content:"⇅"}
       </div>
 
       <div class="chart-grid-2">
-        <div class="chart-card">
-          <div class="card-title"><h3>Task Distribution by Category</h3></div>
+        <div class="chart-card" id="teamCategoryChartCard">
+          <div class="card-title"><h3>Task Distribution by Category<button class="cf-clear-btn" id="teamCfClearCategory" onclick="clearTeamChartFilter('category')">✕ Clear</button></h3></div>
           <div class="chart-scroll chart-scroll-center"><canvas id="teamCategoryPieChart" class="chart-canvas chart-pie" width="420" height="320"></canvas></div>
           <div id="teamCategoryPieLegend" class="chart-legend"></div>
         </div>
-        <div class="chart-card">
-          <div class="card-title"><h3>Task Distribution by Action Plan</h3></div>
+        <div class="chart-card" id="teamActionPlanChartCard">
+          <div class="card-title"><h3>Task Distribution by Action Plan<button class="cf-clear-btn" id="teamCfClearActionPlan" onclick="clearTeamChartFilter('actionPlan')">✕ Clear</button></h3></div>
           <div class="chart-scroll chart-scroll-center"><canvas id="teamActionPlanPieChart" class="chart-canvas chart-pie" width="420" height="320"></canvas></div>
           <div id="teamActionPlanPieLegend" class="chart-legend"></div>
         </div>
       </div>
 
-      <div class="chart-card">
-        <div class="card-title"><h3>Tasks by Company</h3></div>
+      <div class="chart-card" id="teamCompanyChartCard">
+        <div class="card-title"><h3>Tasks by Company<button class="cf-clear-btn" id="teamCfClearCompany" onclick="clearTeamChartFilter('company')">✕ Clear</button></h3></div>
         <div class="chart-scroll"><canvas id="teamCompanyBarChart" class="chart-canvas chart-bar" width="980" height="360"></canvas></div>
         <div id="teamCompanyBarLegend" class="chart-legend"></div>
       </div>
@@ -1362,7 +1365,7 @@ th.sortable:not(.sort-asc):not(.sort-desc) .sort-icon::after{content:"⇅"}
 
         <div class="actions" style="margin-top:16px">
           <button class="ghost" type="button" onclick="setDefaultAssignHistoryFilters();renderAssignHistory()">Reset Filters</button>
-          <button class="secondary" type="button" onclick="exportAssignHistoryCsv()">Export CSV</button>
+          <button class="secondary" type="button" onclick="exportAssignHistoryCsv()">Export XLSX</button>
         </div>
 
         <div id="assignHistoryList" style="margin-top:18px"></div>
@@ -1439,6 +1442,7 @@ th.sortable:not(.sort-asc):not(.sort-desc) .sort-icon::after{content:"⇅"}
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script>
 // @ts-nocheck
 
@@ -1476,6 +1480,12 @@ var calendarMonthDate=new Date(selectedDate+"T00:00:00");
 var dashboardSelectedType="all";
 var teamDashboardSelectedType="all";
 
+/* Cross-filter state cho Team Dashboard charts */
+var teamChartFilter={category:null,actionPlan:null,company:null};
+
+/* Cross-filter state cho My Dashboard charts */
+var dashChartFilter={category:null,actionPlan:null,company:null};
+
 /* ---- Pagination & Sort State ---- */
 var TASKS_PER_PAGE=12;
 
@@ -1486,8 +1496,22 @@ var tablePageState={};
 
 var enterpriseChartColors=[
   "#d4607a","#3a7040","#b07848","#3a5a9a","#7a4a28",
-  "#b03020","#6a4030","#4e2e18","#7a4a90","#c06020"
+  "#b03020","#6a4030","#4e2e18","#7a4a90","#c06020",
+  "#2a8a7a","#8a6a20","#5a3a8a","#1a6a4a","#9a4060",
+  "#4a7a30"
 ];
+
+/* Color map persistent — giữ màu cố định theo tên label qua các lần re-render */
+var _chartColorMap={};
+var _chartColorCounter=0;
+
+function getChartColor(label){
+  if(!_chartColorMap[label]){
+    _chartColorMap[label]=enterpriseChartColors[_chartColorCounter % enterpriseChartColors.length];
+    _chartColorCounter++;
+  }
+  return _chartColorMap[label];
+}
 
 function $(id){return document.getElementById(id)}
 function clone(x){return JSON.parse(JSON.stringify(x))}
@@ -1575,6 +1599,11 @@ async function loadAllData(){
       state.categories=refsRes.data.filter(function(r){return r.type==="category"}).map(function(r){return r.name});
       state.companies=refsRes.data.filter(function(r){return r.type==="company"}).map(function(r){return r.name});
       state.actionPlans=refsRes.data.filter(function(r){return r.type==="action_plan"}).map(function(r){return{name:r.name,kpi:r.kpi||""}});
+
+      /* Pre-assign màu cố định cho tất cả labels ngay khi load — đảm bảo màu không đổi khi cross-filter */
+      state.categories.forEach(function(c){getChartColor(c);});
+      state.companies.forEach(function(c){getChartColor(c);});
+      state.actionPlans.forEach(function(a){getChartColor(a.name);});
     }
 
     /* Load tasks via Edge Function */
@@ -1661,6 +1690,14 @@ async function dbDeleteRef(type,name){
 async function dbUpdateRef(type,oldName,newName,kpi){
   try{
     await apiCall("update-ref",{type:type,oldName:oldName,newName:newName,kpi:kpi||""});
+  }catch(e){console.error(e);}
+}
+
+async function dbBulkUpdateTasksRef(dbField,oldValue,newValue){
+  try{
+    var r=await apiCall("bulk-update-tasks-ref",{field:dbField,oldValue:oldValue,newValue:newValue});
+    if(!r.success)console.error("dbBulkUpdateTasksRef error:",r.error);
+    return r;
   }catch(e){console.error(e);}
 }
 
@@ -1890,20 +1927,35 @@ function renderUserHeader(){
 }
 
 /* Task ID */
-function generateTaskId(){
+async function generateTaskId(){
+  /* Query DB để lấy max taskId hiện tại — tránh collision khi nhiều user cùng tạo task */
+  try{
+    var r=await apiCall("get-max-task-seq");
+    if(r && r.success && r.seq!=null){
+      var n=Number(r.seq)+1;
+      /* Double-check với state.tasks local phòng race condition */
+      state.tasks.forEach(function(t){
+        var m=String(t.taskId||"").match(/^T-(\d+)$/);
+        if(m)n=Math.max(n,Number(m[1])+1);
+      });
+      return "T-"+String(n).padStart(2,"0");
+    }
+  }catch(e){
+    console.warn("generateTaskId fallback to local:",e);
+  }
+
+  /* Fallback: dùng local state nếu Edge Function chưa có action mới */
   var max=0;
   state.tasks.forEach(function(t){
     var m=String(t.taskId||"").match(/^T-(\d+)$/);
     if(m)max=Math.max(max,Number(m[1]));
   });
-
   var n=max+1;
   var id;
   do{
     id="T-"+String(n).padStart(2,"0");
     n++;
   }while(state.tasks.some(function(t){return t.taskId===id}));
-
   return id;
 }
 
@@ -1922,7 +1974,13 @@ function ensureTaskMeta(){
     }
 
     if(!t.taskId){
-      t.taskId=generateTaskId();
+      /* ensureTaskMeta chạy sync lúc startup — dùng local fallback */
+      var max=0;
+      state.tasks.forEach(function(x){
+        var m=String(x.taskId||"").match(/^T-(\d+)$/);
+        if(m)max=Math.max(max,Number(m[1]));
+      });
+      t.taskId="T-"+String(max+1).padStart(2,"0");
       changed=true;
     }
 
@@ -2504,7 +2562,7 @@ function exportAssignHistoryCsv(){
     ]);
   });
 
-  downloadCsv("assign_task_history.csv",rows);
+  downloadXlsx("assign_task_history.xlsx",rows);
 }
 /* Task CRUD */
 function myTasks(){
@@ -2562,7 +2620,7 @@ async function saveTask(prefix,date,messageId){
 
   var task={
     id:"task_"+Date.now()+"_"+Math.random().toString(16).slice(2),
-    taskId:generateTaskId(),
+    taskId:await generateTaskId(),
     ownerId:state.currentUserId,
     createdBy:state.currentUserId,
     assignedBy:null,
@@ -3180,9 +3238,13 @@ async function editReference(key,oldValue,field){
   }
 
   var type=key==="categories"?"category":key==="companies"?"company":"action_plan";
+  var dbField=field==="actionPlan"?"action_plan":field;
+
   state[key]=state[key].map(function(x){return x===oldValue?nv:x});
   state.tasks.forEach(function(t){if(t[field]===oldValue)t[field]=nv});
+
   await dbUpdateRef(type,oldValue,nv,"");
+  await dbBulkUpdateTasksRef(dbField,oldValue,nv);
   renderAll();
 }
 
@@ -3246,6 +3308,7 @@ async function editActionPlan(oldName){
   });
 
   await dbUpdateRef("action_plan",oldName,finalName,item.kpi);
+  await dbBulkUpdateTasksRef("action_plan",oldName,finalName);
   renderAll();
 }
 
@@ -3552,7 +3615,8 @@ function renderDashboardSelectedTaskList(tasks){
 }
 
 function groupTaskCount(tasks,field){
-  return tasks.reduce(function(acc,t){var key=t[field]||"Unspecified";acc[key]=(acc[key]||0)+1;return acc;},{});
+  var unique=uniqueTasksByTaskId(tasks);
+  return unique.reduce(function(acc,t){var key=t[field]||"Unspecified";acc[key]=(acc[key]||0)+1;return acc;},{});
 }
 
 function isDashboardVisible(){
@@ -3799,8 +3863,8 @@ function drawPerformanceLineChart(tasks, canvasId) {
       if (best) {
         Tooltip.show(e.clientX, e.clientY,
           '<div style="margin-bottom:4px;color:#94a3b8;font-size:11px;">' + best.date + '</div>' +
-          '<div style="color:#60a5fa;">\u25cf Allocation: <b>' + best.al + '%</b></div>' +
-          '<div style="color:#4ade80;">\u25cf Work Done:\u00a0\u00a0<b>' + best.dn + '%</b></div>');
+          '<div style="color:#d4607a;">\u25cf Allocation: <b>' + best.al + '%</b></div>' +
+          '<div style="color:#3a7040;">\u25cf Work Done:\u00a0\u00a0<b>' + best.dn + '%</b></div>');
         canvas.style.cursor = 'pointer';
       } else { Tooltip.hide(); canvas.style.cursor = 'default'; }
     },
@@ -3809,11 +3873,16 @@ function drawPerformanceLineChart(tasks, canvasId) {
 }
 
 /* ---- Pie Chart ---- */
-function drawPieChart(canvasId, legendId, groupedData, emptyMessage) {
+function drawPieChart(canvasId, legendId, groupedData, emptyMessage, activeValue, onClickFn) {
   var canvas = $(canvasId), legend = $(legendId);
   if (!canvas || !legend) return;
   if (groupedData !== undefined) canvas._lastData = groupedData;
+  if (activeValue  !== undefined) canvas._activeValue  = activeValue;
+  if (onClickFn    !== undefined) canvas._onClickFn    = onClickFn;
   var gd = canvas._lastData || {};
+  var av = canvas._activeValue !== undefined ? canvas._activeValue : null;
+  var clickFn = canvas._onClickFn || null;
+  var hasFilter = av !== null;
   var entries = Object.keys(gd).map(function(k){ return [k, gd[k]]; });
   if (!entries.length) { drawEmptyChart(canvas, emptyMessage); legend.innerHTML = ''; return; }
   var total = entries.reduce(function(s, e){ return s + e[1]; }, 0);
@@ -3825,17 +3894,25 @@ function drawPieChart(canvasId, legendId, groupedData, emptyMessage) {
   entries.forEach(function(entry, i) {
     var label = entry[0], value = entry[1];
     var angle = (value / total) * Math.PI * 2;
-    var color = enterpriseChartColors[i % enterpriseChartColors.length];
+    var color = getChartColor(label);
     var percent = rounded((value / total) * 100);
+    var isActive = !hasFilter || label === av;
+    /* dim inactive slices */
+    ctx.globalAlpha = hasFilter ? (isActive ? 1 : 0.28) : 1;
     ctx.beginPath(); ctx.moveTo(cx, cy);
     ctx.arc(cx, cy, radius, start, start + angle); ctx.closePath();
     ctx.fillStyle = color; ctx.fill();
-    ctx.strokeStyle = '#fff'; ctx.lineWidth = 3; ctx.stroke();
+    ctx.strokeStyle = '#fff'; ctx.lineWidth = isActive ? 4 : 2; ctx.stroke();
+    ctx.globalAlpha = 1;
     if (percent >= 8) {
       var mid = start + angle / 2;
+      /* Giữa donut hole (0.48) và viền ngoài (1.0) → 0.57 là điểm giữa thoải mái */
+      var labelR = radius * 0.735;
+      ctx.globalAlpha = hasFilter ? (isActive ? 1 : 0.3) : 1;
       ctx.fillStyle = '#fff'; ctx.font = '900 12px "Segoe UI",Arial';
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.fillText(percent + '%', cx + Math.cos(mid)*radius*.66, cy + Math.sin(mid)*radius*.66);
+      ctx.fillText(percent + '%', cx + Math.cos(mid)*labelR, cy + Math.sin(mid)*labelR);
+      ctx.globalAlpha = 1;
     }
     slices.push({ label:label, value:value, percent:percent, color:color, start:start, end:start+angle });
     start += angle;
@@ -3847,8 +3924,9 @@ function drawPieChart(canvasId, legendId, groupedData, emptyMessage) {
   ctx.fillText(total + ' task(s)', cx, cy);
   legend.innerHTML = entries.map(function(entry, i) {
     var p = rounded((entry[1] / total) * 100);
-    return '<span class="legend-item"><span class="legend-color" style="background:' +
-      enterpriseChartColors[i % enterpriseChartColors.length] + '"></span>' +
+    var isActive = !hasFilter || entry[0] === av;
+    return '<span class="legend-item" style="opacity:'+(hasFilter?(isActive?1:0.4):1)+'">'+
+      '<span class="legend-color" style="background:'+getChartColor(entry[0])+'"></span>'+
       escapeHtml(entry[0]) + ': ' + entry[1] + ' (' + p + '%)</span>';
   }).join('');
   var savedSlices = slices.slice();
@@ -3864,30 +3942,50 @@ function drawPieChart(canvasId, legendId, groupedData, emptyMessage) {
       var hit = null;
       savedSlices.forEach(function(s){ if (angle >= s.start && angle < s.end) hit = s; });
       if (hit) {
+        var isSelected = av === hit.label;
         Tooltip.show(e.clientX, e.clientY,
           '<div style="display:flex;align-items:flex-start;gap:7px;margin-bottom:6px;width:100%;">' +
           '<span style="width:10px;height:10px;min-width:10px;margin-top:4px;border-radius:3px;background:' + hit.color + ';display:inline-block;"></span>' +
           '<b style="display:block;white-space:normal;word-break:break-word;overflow-wrap:anywhere;max-width:260px;">' +
-          escapeHtml(hit.label) +
-          '</b>' +
-          '</div>' +
+          escapeHtml(hit.label) + '</b></div>' +
           '<div>Tasks: <b>' + hit.value + '</b></div>' +
-          '<div>Share: <b>' + hit.percent + '%</b></div>');
-        canvas.style.cursor = 'pointer';
+          '<div>Share: <b>' + hit.percent + '%</b></div>' +
+          (clickFn?'<div style="margin-top:6px;font-size:11px;color:var(--muted)">'+(isSelected?'Click to deselect':'Click to filter')+'</div>':''));
+        canvas.style.cursor = clickFn ? 'pointer' : 'default';
       } else { Tooltip.hide(); canvas.style.cursor = 'default'; }
     },
     function() { Tooltip.hide(); canvas.style.cursor = 'default'; }
   );
+  /* click handler */
+  if(clickFn){
+    if(canvas._clickFn) canvas.removeEventListener('click', canvas._clickFn);
+    canvas._clickFn = function(e){
+      var rc = canvas.getBoundingClientRect();
+      var sc = parseFloat(canvas.style.width) / rc.width;
+      var mx = (e.clientX - rc.left)*sc - cx, my = (e.clientY - rc.top)*sc - cy;
+      var dist = Math.sqrt(mx*mx + my*my);
+      if (dist > radius || dist < radius*.48) return;
+      var angle = Math.atan2(my, mx);
+      if (angle < -Math.PI/2) angle += Math.PI*2;
+      savedSlices.forEach(function(s){ if (angle >= s.start && angle < s.end) clickFn(s.label); });
+    };
+    canvas.addEventListener('click', canvas._clickFn);
+  }
 }
 
 /* ---- Bar Chart ---- */
-function drawCompanyBarChart(tasks, canvasId, legendId) {
+function drawCompanyBarChart(tasks, canvasId, legendId, activeValue, onClickFn) {
   canvasId = canvasId || 'companyBarChart';
   legendId = legendId || 'companyBarLegend';
   var canvas = $(canvasId), legend = $(legendId);
   if (!canvas || !legend) return;
-  if (tasks !== undefined) canvas._lastTasks = tasks;
-  var data = canvas._lastTasks || [];
+  if (tasks      !== undefined) canvas._lastTasks   = tasks;
+  if (activeValue !== undefined) canvas._activeValue = activeValue;
+  if (onClickFn   !== undefined) canvas._onClickFn   = onClickFn;
+  var data    = canvas._lastTasks  || [];
+  var av      = canvas._activeValue !== undefined ? canvas._activeValue : null;
+  var clickFn = canvas._onClickFn  || null;
+  var hasFilter = av !== null;
   var counts = groupTaskCount(data, 'company');
   var entries = Object.keys(counts).map(function(k){ return [k, counts[k]]; });
   if (!entries.length) { drawEmptyChart(canvas, 'No company data available'); legend.innerHTML = ''; return; }
@@ -3916,9 +4014,13 @@ function drawCompanyBarChart(tasks, canvasId, legendId) {
   entries.forEach(function(entry, i) {
     var label = entry[0], value = entry[1];
     var x = pad.left + i*(bw+gap), barH = (value/maxVal)*cH, by = pad.top+cH-barH;
-    var color = enterpriseChartColors[i % enterpriseChartColors.length];
+    var color = getChartColor(label);
+    var isActive = !hasFilter || label === av;
+    ctx.globalAlpha = hasFilter ? (isActive ? 1 : 0.28) : 1;
     ctx.fillStyle = color; ctx.fillRect(x, by, bw, barH);
-    ctx.fillStyle = '#0f172a'; ctx.font = '900 13px "Segoe UI",Arial';
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = hasFilter && !isActive ? '#ccc' : '#0f172a';
+    ctx.font = '900 13px "Segoe UI",Arial';
     ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
     ctx.fillText(value, x+bw/2, by-6);
     ctx.save();
@@ -3928,9 +4030,10 @@ function drawCompanyBarChart(tasks, canvasId, legendId) {
     ctx.fillText(label, 0, 0); ctx.restore();
     bars.push({ x:x, y:by, w:bw, h:barH, label:label, value:value, color:color });
   });
-  legend.innerHTML = entries.map(function(entry, i){
-    return '<span class="legend-item"><span class="legend-color" style="background:' +
-      enterpriseChartColors[i%enterpriseChartColors.length] + '"></span>' +
+  legend.innerHTML = entries.map(function(entry){
+    var isActive = !hasFilter || entry[0] === av;
+    return '<span class="legend-item" style="opacity:'+(hasFilter?(isActive?1:0.4):1)+'">'+
+      '<span class="legend-color" style="background:'+getChartColor(entry[0])+'"></span>'+
       escapeHtml(entry[0]) + ': ' + entry[1] + '</span>';
   }).join('');
   var savedBars = bars.slice();
@@ -3944,33 +4047,91 @@ function drawCompanyBarChart(tasks, canvasId, legendId) {
         if (mx>=b.x && mx<=b.x+b.w && my>=b.y && my<=b.y+b.h) hit=b;
       });
       if (hit) {
+        var isSelected = av === hit.label;
         Tooltip.show(e.clientX, e.clientY,
           '<div style="display:flex;align-items:center;gap:7px;margin-bottom:4px;">' +
           '<span style="width:10px;height:10px;border-radius:3px;background:' + hit.color + ';display:inline-block;"></span>' +
           '<b>' + escapeHtml(hit.label) + '</b></div>' +
-          '<div>Tasks: <b>' + hit.value + '</b></div>');
-        canvas.style.cursor = 'pointer';
+          '<div>Tasks: <b>' + hit.value + '</b></div>' +
+          (clickFn?'<div style="margin-top:6px;font-size:11px;color:var(--muted)">'+(isSelected?'Click to deselect':'Click to filter')+'</div>':''));
+        canvas.style.cursor = clickFn ? 'pointer' : 'default';
       } else { Tooltip.hide(); canvas.style.cursor = 'default'; }
     },
     function() { Tooltip.hide(); canvas.style.cursor = 'default'; }
   );
+  if(clickFn){
+    if(canvas._clickFn) canvas.removeEventListener('click', canvas._clickFn);
+    canvas._clickFn = function(e){
+      var rc = canvas.getBoundingClientRect();
+      var sc = parseFloat(canvas.style.width) / rc.width;
+      var mx = (e.clientX - rc.left)*sc, my = (e.clientY - rc.top)*sc;
+      savedBars.forEach(function(b){
+        if(mx>=b.x && mx<=b.x+b.w && my>=b.y && my<=b.y+b.h) clickFn(b.label);
+      });
+    };
+    canvas.addEventListener('click', canvas._clickFn);
+  }
 }
 
 /* ============================================================
    DASHBOARD CHART RENDER
    ============================================================ */
-function renderDashboardCharts(tasks){
-  drawPerformanceLineChart(tasks,"performanceLineChart");
-  drawPieChart("categoryPieChart","categoryPieLegend",groupTaskCount(tasks,"category"),"No category data available");
-  drawPieChart("actionPlanPieChart","actionPlanPieLegend",groupTaskCount(tasks,"actionPlan"),"No action plan data available");
-  drawCompanyBarChart(tasks,"companyBarChart","companyBarLegend");
+function renderDashboardCharts(baseTasks, filteredTasks){
+  baseTasks=baseTasks||filteredTasks;
+  filteredTasks=filteredTasks||baseTasks;
+
+  drawPerformanceLineChart(filteredTasks,"performanceLineChart");
+
+  drawPieChart(
+    "categoryPieChart","categoryPieLegend",
+    groupTaskCount(filteredTasks,"category"),
+    "No category data available",
+    dashChartFilter.category,
+    function(val){applyDashChartFilter("category",val);}
+  );
+
+  drawPieChart(
+    "actionPlanPieChart","actionPlanPieLegend",
+    groupTaskCount(filteredTasks,"actionPlan"),
+    "No action plan data available",
+    dashChartFilter.actionPlan,
+    function(val){applyDashChartFilter("actionPlan",val);}
+  );
+
+  drawCompanyBarChart(
+    filteredTasks,"companyBarChart","companyBarLegend",
+    dashChartFilter.company,
+    function(val){applyDashChartFilter("company",val);}
+  );
 }
 
-function renderTeamDashboardCharts(tasks){
-  drawPerformanceLineChart(tasks,"teamPerformanceLineChart");
-  drawPieChart("teamCategoryPieChart","teamCategoryPieLegend",groupTaskCount(tasks,"category"),"No category data available");
-  drawPieChart("teamActionPlanPieChart","teamActionPlanPieLegend",groupTaskCount(tasks,"actionPlan"),"No action plan data available");
-  drawCompanyBarChart(tasks,"teamCompanyBarChart","teamCompanyBarLegend");
+function renderTeamDashboardCharts(baseTasks, filteredTasks){
+  baseTasks=baseTasks||filteredTasks;
+  filteredTasks=filteredTasks||baseTasks;
+
+  drawPerformanceLineChart(filteredTasks,"teamPerformanceLineChart");
+
+  drawPieChart(
+    "teamCategoryPieChart","teamCategoryPieLegend",
+    groupTaskCount(filteredTasks,"category"),
+    "No category data available",
+    teamChartFilter.category,
+    function(val){applyTeamChartFilter("category",val);}
+  );
+
+  drawPieChart(
+    "teamActionPlanPieChart","teamActionPlanPieLegend",
+    groupTaskCount(filteredTasks,"actionPlan"),
+    "No action plan data available",
+    teamChartFilter.actionPlan,
+    function(val){applyTeamChartFilter("actionPlan",val);}
+  );
+
+  drawCompanyBarChart(
+    filteredTasks,"teamCompanyBarChart","teamCompanyBarLegend",
+    teamChartFilter.company,
+    function(val){applyTeamChartFilter("company",val);}
+  );
 }
 
 /* Resize — redraw all charts using cached data stored on each canvas element. */
@@ -4007,10 +4168,12 @@ if (typeof ResizeObserver !== 'undefined') {
 }
 
 function renderDashboard(){
-  var tasks=getDashboardFilteredTasks();
+  var baseTasks=getDashboardFilteredTasks();
+  var tasks=getDashCrossFilteredTasks(baseTasks);
+  updateCrossFilterUI();
   renderDashboardSummary(tasks);
   renderDashboardSelectedTaskList(tasks);
-  if(isDashboardVisible()){requestAnimationFrame(function(){renderDashboardCharts(tasks);});}
+  if(isDashboardVisible()){requestAnimationFrame(function(){renderDashboardCharts(baseTasks,tasks);});}
 }
 
 /* Team */
@@ -4088,6 +4251,104 @@ function renderTeamDashboardSelectedTaskList(tasks){
   $("teamTaskList").innerHTML=teamTaskTable(selected);
 }
 
+function getTeamCrossFilteredTasks(baseTasks){
+  return baseTasks
+    .filter(function(t){return !teamChartFilter.category  || t.category===teamChartFilter.category})
+    .filter(function(t){return !teamChartFilter.actionPlan|| t.actionPlan===teamChartFilter.actionPlan})
+    .filter(function(t){return !teamChartFilter.company   || t.company===teamChartFilter.company});
+}
+
+/* ---- Cross-filter helpers ---- */
+function getCrossFiltered(tasks, filter){
+  return tasks
+    .filter(function(t){return !filter.category  ||t.category===filter.category})
+    .filter(function(t){return !filter.actionPlan||t.actionPlan===filter.actionPlan})
+    .filter(function(t){return !filter.company   ||t.company===filter.company});
+}
+
+function getTeamCrossFilteredTasks(baseTasks){
+  return getCrossFiltered(baseTasks, teamChartFilter);
+}
+
+function getDashCrossFilteredTasks(baseTasks){
+  return getCrossFiltered(baseTasks, dashChartFilter);
+}
+
+function applyChartFilter(filter, field, value, resetFn, renderFn){
+  filter[field] = filter[field]===value ? null : value;
+  resetFn();
+  renderFn();
+}
+
+function applyTeamChartFilter(field, value){
+  applyChartFilter(teamChartFilter, field, value,
+    function(){tablePageState["teamTaskTable"]=1;},
+    renderTeamDashboard
+  );
+}
+
+function applyDashChartFilter(field, value){
+  applyChartFilter(dashChartFilter, field, value,
+    function(){tablePageState["dashTaskTable"]=1;},
+    renderDashboard
+  );
+}
+
+function clearAllTeamChartFilters(){
+  teamChartFilter={category:null,actionPlan:null,company:null};
+  tablePageState["teamTaskTable"]=1;
+  renderTeamDashboard();
+}
+
+function clearAllDashChartFilters(){
+  dashChartFilter={category:null,actionPlan:null,company:null};
+  tablePageState["dashTaskTable"]=1;
+  renderDashboard();
+}
+
+function clearTeamChartFilter(field){
+  teamChartFilter[field]=null;
+  tablePageState["teamTaskTable"]=1;
+  renderTeamDashboard();
+}
+
+function clearDashChartFilter(field){
+  dashChartFilter[field]=null;
+  tablePageState["dashTaskTable"]=1;
+  renderDashboard();
+}
+
+function updateCrossFilterUI(){
+  var configs=[
+    {
+      filter:teamChartFilter,
+      cardIds:{category:"teamCategoryChartCard",actionPlan:"teamActionPlanChartCard",company:"teamCompanyChartCard"},
+      btnIds:{category:"teamCfClearCategory",actionPlan:"teamCfClearActionPlan",company:"teamCfClearCompany"}
+    },
+    {
+      filter:dashChartFilter,
+      cardIds:{category:"dashCategoryChartCard",actionPlan:"dashActionPlanChartCard",company:"dashCompanyChartCard"},
+      btnIds:{category:"dashCfClearCategory",actionPlan:"dashCfClearActionPlan",company:"dashCfClearCompany"}
+    }
+  ];
+  configs.forEach(function(cfg){
+    ["category","actionPlan","company"].forEach(function(f){
+      var card=$(cfg.cardIds[f]);
+      var btn=$(cfg.btnIds[f]);
+      if(card){
+        if(cfg.filter[f]) card.classList.add("cf-active");
+        else card.classList.remove("cf-active");
+      }
+      if(btn){
+        if(cfg.filter[f]) btn.classList.add("show");
+        else btn.classList.remove("show");
+      }
+    });
+  });
+}
+
+/* Click lại cùng slice/bar → toggle off (xử lý trong applyChartFilter) */
+
 function renderTeamDashboard(){
   var user=getCurrentUser();
 
@@ -4095,11 +4356,13 @@ function renderTeamDashboard(){
     ?"Current user: "+user.name+(user.isManager?" / Manager":"")
     :"";
 
-  var tasks=getTeamFilteredTasks();
+  var baseTasks=getTeamFilteredTasks();
+  var tasks=getTeamCrossFilteredTasks(baseTasks);
 
+  updateCrossFilterUI();
   renderTeamDashboardSummary(tasks);
   renderTeamDashboardSelectedTaskList(tasks);
-  if(isTeamDashboardVisible()){requestAnimationFrame(function(){renderTeamDashboardCharts(tasks);}); }
+  if(isTeamDashboardVisible()){requestAnimationFrame(function(){renderTeamDashboardCharts(baseTasks,tasks);}); }
 }
 
 function renderAssignJobAccess(){
@@ -4190,7 +4453,7 @@ async function assignJobToMember(){
 
   var task={
     id:"task_"+Date.now()+"_"+Math.random().toString(16).slice(2),
-    taskId:generateTaskId(),
+    taskId:await generateTaskId(),
     ownerId:data.ownerId,
     createdBy:state.currentUserId,
     assignedBy:state.currentUserId,
@@ -4237,34 +4500,33 @@ async function assignJobToMember(){
   renderNotifications();
 }
 
-/* CSV */
-function csvCell(value){
-  var text=String(value??"");
-  if(/^[=+\-@]/.test(text.trim()))text="'"+text;
-  return '"' + text.replaceAll('"','""') + '"';
-}
-
-function downloadCsv(filename,rows){
+/* XLSX Export */
+function downloadXlsx(filename, rows){
   if(!rows||!rows.length){
     alert("No data to export.");
     return;
   }
+  var ws=XLSX.utils.aoa_to_sheet(rows);
 
-  var csvContent="\uFEFF"+rows.map(function(row){
-    return row.map(csvCell).join(",");
-  }).join("\r\n");
+  /* Auto column width */
+  var colWidths=rows[0].map(function(_,ci){
+    return rows.reduce(function(max,row){
+      return Math.max(max, String(row[ci]??"").length);
+    },10);
+  });
+  ws["!cols"]=colWidths.map(function(w){return{wch:Math.min(w+2,50)};});
 
-  var blob=new Blob([csvContent],{type:"text/csv;charset=utf-8;"});
-  var link=document.createElement("a");
-  var objectUrl=URL.createObjectURL(blob);
+  /* Style header row bold — basic xlsx support */
+  var range=XLSX.utils.decode_range(ws["!ref"]);
+  for(var c=range.s.c;c<=range.e.c;c++){
+    var addr=XLSX.utils.encode_cell({r:0,c:c});
+    if(!ws[addr])continue;
+    ws[addr].s={font:{bold:true}};
+  }
 
-  link.href=objectUrl;
-  link.download=filename;
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-
-  setTimeout(function(){URL.revokeObjectURL(objectUrl)},0);
+  var wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,ws,"Data");
+  XLSX.writeFile(wb,filename);
 }
 
 function getCarryText(task){
@@ -4306,7 +4568,7 @@ function exportMyDashboardCsv(){
     ]);
   });
 
-  downloadCsv("my_dashboard.csv",rows);
+  downloadXlsx("my_dashboard.xlsx",rows);
 }
 
 function exportTeamDashboardCsv(){
@@ -4344,7 +4606,7 @@ function exportTeamDashboardCsv(){
     ]);
   });
 
-  downloadCsv("team_dashboard.csv",rows);
+  downloadXlsx("team_dashboard.xlsx",rows);
 }
 
 /* Render all */
@@ -4541,6 +4803,7 @@ document.addEventListener("DOMContentLoaded", function () {
     if (el) {
       el.addEventListener("change", function () {
         tablePageState["dashTaskTable"]=1;
+        dashChartFilter={category:null,actionPlan:null,company:null};
         requestAnimationFrame(function () {
           renderDashboard();
         });
