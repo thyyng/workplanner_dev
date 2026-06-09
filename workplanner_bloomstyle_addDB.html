@@ -644,10 +644,11 @@ tr:last-child td{border-bottom:0}
 
 .noti-panel{
   position:absolute;
-  right:-8px;
+  right:0;
   top:100%;
   margin-top:8px;
   width:min(360px,calc(100vw - 24px));
+  max-width:calc(100vw - 16px);
   max-height:60vh;
   overflow:auto;
   background:var(--card);
@@ -1766,8 +1767,10 @@ function getStatus(c){
 function getTaskStatus(t){
   if(!t)return "Pending";
 
-  // Task được carry forward thì là To-do nếu chưa hoàn thành
+  // Task carry forward: In Progress giữ nguyên, Pending/To-do đổi thành To-do
   if(t.carriedFromDate && Number(t.completion||0) < 100){
+    var c=Number(t.completion||0);
+    if(c>0)return "In Progress";  // đã có progress thì giữ In Progress
     return "To-do";
   }
 
@@ -2596,8 +2599,17 @@ function teamTaskTable(tasks){
   '</tr></thead><tbody>'+
   tasks.map(function(t){
     var s=getTaskStatus(t);
+    var user=getCurrentUser();
+    /* Staff: click được task của mình hoặc được assign cho mình
+       Manager: chỉ click task của chính mình */
+    var canClick=user && (
+      t.ownerId===state.currentUserId ||
+      (!user.isManager && t.assignedBy && t.ownerId===state.currentUserId)
+    );
+    var rowClass=canClick?'task-link-row':'';
+    var rowClick=canClick?' onclick="goToTaskCalendarDate(\''+escapeForAction(t.date)+'\',\''+escapeForAction(t.taskId||t.id)+'\')"':'';
 
-    return '<tr class="task-link-row" onclick="goToTaskCalendarDate(\''+t.date+'\')">'+
+    return '<tr class="'+rowClass+'"'+rowClick+'>'+
       '<td data-label="Task ID"><span class="task-id-pill">'+escapeHtml(t.taskId||t.id)+'</span></td>'+
       '<td data-label="Member">'+escapeHtml(getUserNameById(t.ownerId))+'</td>'+
       '<td data-label="Date">'+formatNiceDate(t.date)+'</td>'+
@@ -3209,11 +3221,14 @@ async function confirmCarryForward(){
   var newTasks=[];
   selected.forEach(function(t){
     t.carriedToDate=targetDate;
+    /* In Progress: giữ nguyên completion + allocation. Pending/To-do: reset về 0 */
+    var keepCompletion=Number(t.completion||0)>0;
     var newTask=Object.assign({},t,{
       id:"task_"+Date.now()+"_"+Math.random().toString(16).slice(2),
       taskId:t.taskId,
       date:targetDate,
-      completion:0,
+      completion:keepCompletion?t.completion:0,
+      allocation:t.allocation,
       carriedFromDate:sourceDate,
       carriedToDate:null,
       originalTaskId:t.id,
