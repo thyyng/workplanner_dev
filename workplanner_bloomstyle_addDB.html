@@ -1926,7 +1926,18 @@ function stateTaskToDb(t){
 
 async function loadAllData(){
   try{
-    /* Load ref_data via Edge Function */
+    /* Đảm bảo state.users luôn có data (trường hợp auto-login bỏ qua login screen) */
+    if(!state.users||!state.users.length){
+      try{
+        var usersRes=await fetch(EDGE_GET_USERS,{headers:{"Authorization":"Bearer "+SUPABASE_KEY}});
+        var usersJson=await usersRes.json();
+        if(usersJson.success&&usersJson.users){
+          state.users=usersJson.users.map(function(r){
+            return{id:r.id,name:r.name,isManager:r.is_manager,managerId:r.manager_id};
+          });
+        }
+      }catch(e){console.error("loadAllData users error:",e);}
+    }
     var refsRes=await apiCall("get-refs");
     if(refsRes.success && refsRes.data){
       state.categories=refsRes.data.filter(function(r){return r.type==="category"}).map(function(r){return r.name});
@@ -4693,7 +4704,6 @@ function renderTeamDashboard(){
   var tasks=getTeamCrossFilteredTasks(baseTasks);
 
   updateCrossFilterUI();
-  updateAiContextBadge();
   renderTeamDashboardSummary(tasks);
   renderTeamDashboardSelectedTaskList(tasks);
   if(isTeamDashboardVisible()){requestAnimationFrame(function(){renderTeamDashboardCharts(baseTasks,tasks);}); }
@@ -5108,8 +5118,8 @@ function renderAiMsg(role,text,showExport){
   var exportBtns="";
   if(showExport){
     exportBtns='<div class="ai-gmsg-actions">'+
-      '<button class="ai-gmsg-export" onclick="exportAiToWord('+msgIdx+')">📄 Export Word</button>'+
-      '<button class="ai-gmsg-export" onclick="exportAiToPPT('+msgIdx+')">📊 Export PowerPoint</button>'+
+      '<button class="ai-gmsg-export" onclick="exportAiToWord('+msgIdx+')">Export Word</button>'+
+      '<button class="ai-gmsg-export" onclick="exportAiToPPT('+msgIdx+')">Export PowerPoint</button>'+
     '</div>';
   }
   var avatarHtml=isUser?escapeHtml(_getCurrentUserInitials()):_aiHoloAvatar;
