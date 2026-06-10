@@ -5108,6 +5108,26 @@ function _getCurrentUserInitials(){
   return parts.length>=2?(parts[0][0]+parts[parts.length-1][0]).toUpperCase():parts[0].slice(0,2).toUpperCase();
 }
 
+function parseMarkdown(text){
+  return escapeHtml(text)
+    // **bold**
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    // *italic* hoặc bullet * text
+    .replace(/^\* (.+)$/gm, '<li>$1</li>')
+    // # Heading 1
+    .replace(/^# (.+)$/gm, '<h3 style="color:var(--brown);margin:12px 0 6px;font-size:15px">$1</h3>')
+    // ## Heading 2
+    .replace(/^## (.+)$/gm, '<h4 style="color:var(--brown2);margin:10px 0 4px;font-size:13px">$1</h4>')
+    // ### Heading 3
+    .replace(/^### (.+)$/gm, '<b style="color:var(--muted)">$1</b><br>')
+    // - bullet
+    .replace(/^- (.+)$/gm, '<li>$1</li>')
+    // wrap li groups
+    .replace(/(<li>.*<\/li>)/gs, '<ul style="margin:6px 0 6px 16px;padding:0">$1</ul>')
+    // newlines
+    .replace(/\n/g, '<br>');
+}
+  
 function renderAiMsg(role,text,showExport){
   var greeting=$("aiGreeting");
   if(greeting)greeting.classList.add("hidden");
@@ -5125,7 +5145,7 @@ function renderAiMsg(role,text,showExport){
   var avatarHtml=isUser?escapeHtml(_getCurrentUserInitials()):_aiHoloAvatar;
   var html='<div class="ai-gmsg '+(isUser?"user":"ai")+'">'+
     '<div class="ai-gmsg-avatar">'+avatarHtml+'</div>'+
-    '<div class="ai-gmsg-body"><div class="ai-gmsg-bubble">'+escapeHtml(text)+'</div>'+exportBtns+'</div>'+
+    '<div class="ai-gmsg-body"><div class="ai-gmsg-bubble" style="white-space:normal">'+(isUser?escapeHtml(text):parseMarkdown(text))+'</div>'+exportBtns+'</div>'+
   '</div>';
   box.insertAdjacentHTML("beforeend",html);
   box.scrollTop=box.scrollHeight;
@@ -5163,7 +5183,7 @@ async function sendAiMessage(){
     renderAiMsg("model",reply,true);
   }catch(e){
     removeTyping();
-    var err="❌ Lỗi: "+e.message;
+    var err="Error: "+e.message;
     _aiHistory.push({role:"model",text:err});
     renderAiMsg("model",err,false);
   }
