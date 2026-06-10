@@ -719,7 +719,274 @@ tr.task-highlight td:last-child{
 .task-link-row{cursor:pointer}
 .task-link-row:hover{background:var(--pink-pale)}
 
-/* ---- Sortable columns ---- */
+/* ── AI Analyst — Gemini style ─────────────────── */
+.ai-gemini-wrap{
+  display:flex;
+  flex-direction:column;
+  height:calc(100vh - 140px);
+  max-width:860px;
+  margin:0 auto;
+  padding:0 16px;
+  position:relative;
+}
+.ai-greeting{
+  flex:1;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  text-align:center;
+  padding:60px 20px 0;
+  gap:14px;
+}
+.ai-greeting.hidden{display:none;}
+.ai-greeting-icon{
+  width:100px;height:100px;
+  position:relative;
+  display:flex;align-items:center;justify-content:center;
+  animation:floatIcon 4s ease-in-out infinite;
+}
+/* Outer glow ring */
+.ai-greeting-icon::before{
+  content:"";
+  position:absolute;inset:-14px;
+  border-radius:50%;
+  background:conic-gradient(from 0deg,transparent 0%,rgba(212,96,122,.35) 25%,rgba(78,46,24,.5) 50%,rgba(212,96,122,.35) 75%,transparent 100%);
+  animation:spinRing 3s linear infinite;
+  filter:blur(2px);
+}
+/* Inner glow */
+.ai-greeting-icon::after{
+  content:"";
+  position:absolute;inset:6px;
+  border-radius:50%;
+  background:radial-gradient(circle,rgba(212,96,122,.18) 0%,transparent 70%);
+  animation:pulseGlow 2s ease-in-out infinite;
+}
+@keyframes spinRing{to{transform:rotate(360deg)}}
+@keyframes pulseGlow{0%,100%{opacity:.4;transform:scale(.9)}50%{opacity:1;transform:scale(1.1)}}
+@keyframes floatIcon{0%,100%{transform:translateY(0)}50%{transform:translateY(-10px)}}
+
+/* Hologram button core */
+.ai-hologram-btn{
+  width:80px;height:80px;
+  border-radius:50%;
+  border:none;
+  cursor:default;
+  position:relative;
+  z-index:1;
+  background:radial-gradient(circle at 35% 35%,
+    rgba(255,220,230,.95) 0%,
+    rgba(212,96,122,.7) 30%,
+    rgba(122,46,40,.85) 65%,
+    rgba(40,16,8,.9) 100%
+  );
+  box-shadow:
+    0 0 0 2px rgba(212,96,122,.5),
+    0 0 20px rgba(212,96,122,.4),
+    0 0 45px rgba(212,96,122,.2),
+    inset 0 1px 0 rgba(255,255,255,.3),
+    inset 0 -1px 0 rgba(0,0,0,.2);
+  display:flex;align-items:center;justify-content:center;
+  overflow:hidden;
+  animation:holoPulse 2.5s ease-in-out infinite;
+}
+@keyframes holoPulse{
+  0%,100%{box-shadow:0 0 0 2px rgba(212,96,122,.5),0 0 20px rgba(212,96,122,.4),0 0 45px rgba(212,96,122,.2),inset 0 1px 0 rgba(255,255,255,.3);}
+  50%{box-shadow:0 0 0 3px rgba(212,96,122,.7),0 0 32px rgba(212,96,122,.6),0 0 65px rgba(212,96,122,.35),inset 0 1px 0 rgba(255,255,255,.4);}
+}
+/* Holographic scan line */
+.ai-hologram-btn::before{
+  content:"";
+  position:absolute;
+  top:-100%;left:0;right:0;height:40%;
+  background:linear-gradient(to bottom,transparent,rgba(255,200,220,.25),transparent);
+  animation:scanLine 2.5s ease-in-out infinite;
+  border-radius:50%;
+}
+@keyframes scanLine{0%{top:-40%}100%{top:140%}}
+/* Inner icon */
+.ai-hologram-btn svg{
+  width:36px;height:36px;
+  filter:drop-shadow(0 0 6px rgba(255,200,220,.8));
+  position:relative;z-index:1;
+}
+/* Avatar in chat — small hologram */
+.ai-gmsg.ai .ai-gmsg-avatar{
+  background:radial-gradient(circle at 35% 35%,rgba(255,200,220,.9),rgba(212,96,122,.7),rgba(78,26,18,.85));
+  box-shadow:0 0 8px rgba(212,96,122,.5),0 0 16px rgba(212,96,122,.2);
+  font-size:14px;
+  overflow:hidden;
+  position:relative;
+}
+.ai-gmsg.ai .ai-gmsg-avatar::after{
+  content:"";
+  position:absolute;top:-100%;left:0;right:0;height:50%;
+  background:linear-gradient(to bottom,transparent,rgba(255,200,220,.2),transparent);
+  animation:scanLine 2s ease-in-out infinite;
+  border-radius:50%;
+}
+.ai-greeting-title{
+  font-size:28px;
+  font-weight:700;
+  color:var(--brown);
+  line-height:1.3;
+}
+.ai-greeting-sub{
+  font-size:14px;
+  color:var(--muted);
+  max-width:480px;
+  line-height:1.7;
+}
+.ai-gemini-messages{
+  flex:1;
+  overflow-y:auto;
+  padding:24px 0 8px;
+  display:flex;
+  flex-direction:column;
+  gap:20px;
+  scroll-behavior:smooth;
+}
+.ai-gemini-messages:empty{display:none;}
+.ai-gmsg{
+  display:flex;
+  gap:12px;
+  align-items:flex-start;
+  animation:msgSlide .2s ease;
+}
+@keyframes msgSlide{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+.ai-gmsg.user{flex-direction:row-reverse;}
+.ai-gmsg-avatar{
+  width:34px;height:34px;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;
+  font-size:15px;flex-shrink:0;margin-top:2px;
+}
+.ai-gmsg.user .ai-gmsg-avatar{
+  background:var(--brown);color:#fff;
+  font-size:12px;font-weight:700;
+}
+.ai-gmsg.ai .ai-gmsg-avatar{
+  background:linear-gradient(135deg,var(--pink) 0%,var(--brown2) 100%);
+  color:#fff;font-size:16px;
+}
+.ai-gmsg-body{max-width:80%;}
+.ai-gmsg.user .ai-gmsg-body{display:flex;flex-direction:column;align-items:flex-end;}
+.ai-gmsg-bubble{
+  padding:12px 16px;
+  border-radius:18px;
+  font-size:14px;
+  line-height:1.7;
+  white-space:pre-wrap;
+  word-break:break-word;
+}
+.ai-gmsg.user .ai-gmsg-bubble{
+  background:var(--brown);
+  color:#fff;
+  border-bottom-right-radius:4px;
+}
+.ai-gmsg.ai .ai-gmsg-bubble{
+  background:var(--card);
+  color:var(--text);
+  border:1px solid var(--line);
+  border-bottom-left-radius:4px;
+}
+.ai-gmsg-actions{
+  display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;
+}
+.ai-gmsg-export{
+  font-size:12px;font-weight:600;
+  padding:5px 14px;border-radius:20px;
+  border:1.5px solid var(--line);
+  background:var(--card);color:var(--brown2);
+  cursor:pointer;transition:.13s;
+  font-family:'DM Sans',sans-serif;
+  display:flex;align-items:center;gap:6px;
+}
+.ai-gmsg-export:hover{border-color:var(--pink);color:var(--pink);}
+.ai-typing-wrap{
+  display:flex;gap:12px;align-items:center;
+}
+.ai-dots{display:flex;gap:5px;padding:12px 16px;background:var(--card);border:1px solid var(--line);border-radius:18px;border-bottom-left-radius:4px;}
+.ai-dots span{
+  width:7px;height:7px;border-radius:50%;
+  background:var(--pink);
+  animation:dotPulse 1.4s infinite;
+}
+.ai-dots span:nth-child(2){animation-delay:.2s;}
+.ai-dots span:nth-child(3){animation-delay:.4s;}
+@keyframes dotPulse{0%,80%,100%{opacity:.25;transform:scale(.8)}40%{opacity:1;transform:scale(1)}}
+
+/* Input area */
+.ai-gemini-bottom{
+  padding:12px 0 16px;
+  display:flex;
+  flex-direction:column;
+  gap:8px;
+}
+.ai-file-preview{
+  display:flex;gap:8px;flex-wrap:wrap;
+  padding:0 2px;
+}
+.ai-file-chip{
+  display:flex;align-items:center;gap:6px;
+  padding:5px 12px;border-radius:20px;
+  background:var(--pink-pale);border:1.5px solid var(--pink-l);
+  font-size:12px;font-weight:600;color:var(--pink);
+}
+.ai-file-chip button{
+  background:none;border:none;cursor:pointer;
+  color:var(--pink);font-size:14px;padding:0;line-height:1;
+}
+.ai-gemini-inputbox{
+  display:flex;align-items:flex-end;gap:10px;
+  background:var(--card);
+  border:1.5px solid var(--line);
+  border-radius:24px;
+  padding:10px 14px 10px 16px;
+  transition:.15s;
+  box-shadow:0 2px 12px rgba(78,46,24,.08);
+}
+.ai-gemini-inputbox:focus-within{
+  border-color:var(--pink-l);
+  box-shadow:0 2px 20px rgba(212,96,122,.15);
+}
+.ai-attach-btn{
+  color:var(--muted);cursor:pointer;
+  display:flex;align-items:center;
+  padding:4px;border-radius:8px;
+  transition:.13s;flex-shrink:0;
+  margin-bottom:2px;
+}
+.ai-attach-btn:hover{color:var(--pink);}
+.ai-gemini-textarea{
+  flex:1;
+  border:none;background:transparent;
+  font-size:14px;font-family:'DM Sans',sans-serif;
+  color:var(--text);resize:none;outline:none;
+  min-height:24px;max-height:160px;
+  line-height:1.6;padding:2px 0;
+}
+.ai-gemini-textarea::placeholder{color:var(--text3);}
+.ai-gemini-send{
+  width:36px;height:36px;border-radius:50%;
+  background:var(--pink);color:#fff;border:none;
+  cursor:pointer;display:flex;align-items:center;justify-content:center;
+  transition:.15s;flex-shrink:0;
+}
+.ai-gemini-send:hover{background:var(--brown2);transform:scale(1.05);}
+.ai-gemini-send:disabled{background:var(--line);color:var(--muted);cursor:not-allowed;transform:none;}
+.ai-gemini-footer{
+  display:flex;align-items:center;justify-content:space-between;
+  font-size:11.5px;color:var(--text3);
+  padding:0 4px;
+}
+.ai-clear-btn{
+  background:none;border:none;cursor:pointer;
+  font-size:11.5px;color:var(--muted);
+  font-family:'DM Sans',sans-serif;
+  padding:3px 8px;border-radius:6px;
+}
+.ai-clear-btn:hover{color:var(--pink);}
 th.sortable{
   cursor:pointer;
   user-select:none;
@@ -915,6 +1182,7 @@ th.sortable:not(.sort-asc):not(.sort-desc) .sort-icon::after{content:"⇅"}
   <nav class="tabs">
     <button class="main-tab active" data-main="myFunctions">My work planner</button>
     <button class="main-tab" data-main="teamFunctions">Team work planner</button>
+    <button class="main-tab" data-main="aiAnalystSection">I'm AI</button>
   </nav>
 
   <section id="myFunctions" class="section active">
@@ -1373,6 +1641,73 @@ th.sortable:not(.sort-asc):not(.sort-desc) .sort-icon::after{content:"⇅"}
       
     </section>
   </section>
+
+  <!-- ══ AI ANALYST SECTION ══ -->
+  <section id="aiAnalystSection" class="section">
+    <div class="ai-gemini-wrap">
+
+      <!-- Empty state / greeting -->
+      <div id="aiGreeting" class="ai-greeting">
+        <div class="ai-greeting-icon">
+          <div class="ai-hologram-btn">
+            <svg viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <circle cx="18" cy="18" r="7" fill="rgba(255,220,230,0.9)" filter="url(#glow)"/>
+              <circle cx="18" cy="18" r="11" stroke="rgba(255,200,220,0.6)" stroke-width="1.5" stroke-dasharray="3 2"/>
+              <circle cx="18" cy="18" r="15" stroke="rgba(255,180,200,0.3)" stroke-width="1" stroke-dasharray="2 4"/>
+              <path d="M18 11 L20 16 L18 14 L16 16 Z" fill="rgba(255,240,245,0.95)"/>
+              <path d="M18 25 L16 20 L18 22 L20 20 Z" fill="rgba(255,240,245,0.95)"/>
+              <path d="M11 18 L16 16 L14 18 L16 20 Z" fill="rgba(255,240,245,0.95)"/>
+              <path d="M25 18 L20 20 L22 18 L20 16 Z" fill="rgba(255,240,245,0.95)"/>
+              <defs>
+                <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+                  <feGaussianBlur stdDeviation="2" result="blur"/>
+                  <feComposite in="SourceGraphic" in2="blur" operator="over"/>
+                </filter>
+              </defs>
+            </svg>
+          </div>
+        </div>
+        <div class="ai-greeting-title" id="aiGreetingTitle">Bé Gem có thể giúp gì được cho mấy chị?</div>
+        <div class="ai-greeting-sub">Hỏi em ở đây nhoa</div>
+      </div>
+
+      <!-- Messages -->
+      <div id="aiMessages" class="ai-gemini-messages"></div>
+
+      <!-- Input area -->
+      <div class="ai-gemini-bottom">
+
+        <!-- Attached files preview -->
+        <div id="aiFilePreview" class="ai-file-preview"></div>
+
+        <div class="ai-gemini-inputbox">
+          <label class="ai-attach-btn" for="aiFileInput" title="Attach file">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+          </label>
+          <input type="file" id="aiFileInput" multiple accept=".doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv" style="display:none" onchange="handleAiFileAttach(this)">
+
+          <textarea
+            id="aiInput"
+            class="ai-gemini-textarea"
+            placeholder="Hỏi về dữ liệu team hoặc tải file lên đều ok..."
+            rows="1"
+            onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendAiMessage()}"
+            oninput="this.style.height='24px';this.style.height=Math.min(this.scrollHeight,160)+'px'"
+          ></textarea>
+
+          <button id="aiSendBtn" class="ai-gemini-send" onclick="sendAiMessage()" title="Send" disabled>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+          </button>
+        </div>
+
+        <div class="ai-gemini-footer">
+          <span>Gemini model</span>
+          <button class="ai-clear-btn" onclick="clearAiChat()">Xoá hội thoại</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
 </main>
 
 <div id="carryForwardModal" class="modal">
@@ -1496,9 +1831,7 @@ var tablePageState={};
 
 var enterpriseChartColors=[
   "#d4607a","#3a7040","#b07848","#3a5a9a","#7a4a28",
-  "#b03020","#6a4030","#4e2e18","#7a4a90","#c06020",
-  "#2a8a7a","#8a6a20","#5a3a8a","#1a6a4a","#9a4060",
-  "#4a7a30"
+  "#b03020","#6a4030","#4e2e18","#7a4a90","#c06020"
 ];
 
 /* Color map persistent — giữ màu cố định theo tên label qua các lần re-render */
@@ -4360,6 +4693,7 @@ function renderTeamDashboard(){
   var tasks=getTeamCrossFilteredTasks(baseTasks);
 
   updateCrossFilterUI();
+  updateAiContextBadge();
   renderTeamDashboardSummary(tasks);
   renderTeamDashboardSelectedTaskList(tasks);
   if(isTeamDashboardVisible()){requestAnimationFrame(function(){renderTeamDashboardCharts(baseTasks,tasks);}); }
@@ -4630,6 +4964,304 @@ function renderAll(){
   toggleActionAddButton();
 }
 
+/* ════════════════════════════════════════════════════
+   AI ANALYST — Gemini style, secure via Edge Function
+════════════════════════════════════════════════════ */
+var _aiHistory=[];
+var _aiTyping=false;
+var _aiAttachedFiles=[];
+
+function initAiInputListener(){
+  var input=$("aiInput");
+  if(!input)return;
+  input.addEventListener("input",function(){
+    var btn=$("aiSendBtn");
+    if(btn)btn.disabled=!this.value.trim()&&!_aiAttachedFiles.length;
+  });
+}
+
+function handleAiFileAttach(input){
+  var files=Array.from(input.files||[]);
+  files.forEach(function(f){
+    if(!_aiAttachedFiles.find(function(x){return x.name===f.name;}))
+      _aiAttachedFiles.push(f);
+  });
+  input.value="";
+  renderAiFilePreview();
+  var btn=$("aiSendBtn");
+  var inp=$("aiInput");
+  if(btn)btn.disabled=!(inp&&inp.value.trim())&&!_aiAttachedFiles.length;
+}
+
+function renderAiFilePreview(){
+  var box=$("aiFilePreview");
+  if(!box)return;
+  box.innerHTML=_aiAttachedFiles.map(function(f,i){
+    var icon=f.name.match(/\.xlsx?$/i)?"📊":f.name.match(/\.pptx?$/i)?"📊":f.name.match(/\.docx?$/i)?"📄":"📎";
+    return'<div class="ai-file-chip">'+icon+" "+escapeHtml(f.name)+
+      '<button onclick="removeAiFile('+i+')" title="Remove">×</button></div>';
+  }).join("");
+}
+
+function removeAiFile(idx){
+  _aiAttachedFiles.splice(idx,1);
+  renderAiFilePreview();
+}
+
+function readFileAsBase64(file){
+  return new Promise(function(resolve,reject){
+    var r=new FileReader();
+    r.onload=function(){resolve(r.result.split(",")[1]);};
+    r.onerror=reject;
+    r.readAsDataURL(file);
+  });
+}
+
+var _aiHoloAvatar='<svg width="18" height="18" viewBox="0 0 36 36" fill="none"><circle cx="18" cy="18" r="7" fill="rgba(255,220,230,0.9)"/><circle cx="18" cy="18" r="11" stroke="rgba(255,200,220,0.6)" stroke-width="1.5" stroke-dasharray="3 2"/><path d="M18 11 L20 16 L18 14 L16 16 Z" fill="rgba(255,240,245,1)"/><path d="M18 25 L16 20 L18 22 L20 20 Z" fill="rgba(255,240,245,1)"/><path d="M11 18 L16 16 L14 18 L16 20 Z" fill="rgba(255,240,245,1)"/><path d="M25 18 L20 20 L22 18 L20 16 Z" fill="rgba(255,240,245,1)"/></svg>';
+
+function buildAiContext(){
+  var baseTasks=getTeamFilteredTasks();
+  var tasks=getTeamCrossFilteredTasks(baseTasks);
+  var unique=uniqueTasksByTaskId(tasks);
+  var from=$("teamFilterFrom")&&$("teamFilterFrom").value;
+  var to=$("teamFilterTo")&&$("teamFilterTo").value;
+
+  var memberMap={};
+  unique.forEach(function(t){
+    var name=getUserNameById(t.ownerId)||t.ownerId;
+    if(!memberMap[name])memberMap[name]={name:name,total:0,completed:0,inProgress:0,pending:0,todo:0,totalAlloc:0,totalDone:0};
+    var m=memberMap[name];
+    m.total++;
+    m.totalAlloc+=Number(t.allocation||0);
+    m.totalDone+=Number(t.allocation||0)*Number(t.completion||0)/100;
+    var st=getTaskStatus(t);
+    if(st==="Completed")m.completed++;
+    else if(st==="In Progress")m.inProgress++;
+    else if(st==="Pending")m.pending++;
+    else if(st==="To-do")m.todo++;
+  });
+
+  var catMap=groupTaskCount(tasks,"category");
+  var apMap=groupTaskCount(tasks,"actionPlan");
+  var coMap=groupTaskCount(tasks,"company");
+
+  var taskLines=unique.map(function(t){
+    return"- ["+t.taskId+"] "+t.name+" | "+getUserNameById(t.ownerId)+" | "+t.date+" | "+t.category+" | "+t.actionPlan+" | Alloc:"+rounded(t.allocation)+"% Done:"+rounded(t.completion)+"% | "+getTaskStatus(t)+(t.carriedFromDate?" [Carried from "+t.carriedFromDate+"]":"");
+  }).join("\n");
+
+  var memberLines=Object.values(memberMap).map(function(m){
+    var cr=m.total>0?rounded(m.completed/m.total*100):0;
+    var wd=m.totalAlloc>0?rounded(m.totalDone/m.totalAlloc*100):0;
+    return"- "+m.name+": "+m.total+" tasks | Completed:"+m.completed+" InProgress:"+m.inProgress+" Pending:"+m.pending+" ToDo:"+m.todo+" | CompletionRate:"+cr+"% | WorkDone:"+wd+"%";
+  }).join("\n");
+
+  var ctx="=== HCEDS TEAM DASHBOARD DATA ===\n";
+  ctx+="Date range: "+(from||"all")+" to "+(to||"all")+"\n";
+  ctx+="Total unique tasks: "+unique.length+"\n\n";
+  ctx+="=== MEMBER PERFORMANCE ===\n"+memberLines+"\n\n";
+  ctx+="=== CATEGORY BREAKDOWN ===\n"+Object.entries(catMap).map(function(e){return"- "+e[0]+": "+e[1]+" tasks";}).join("\n")+"\n\n";
+  ctx+="=== ACTION PLAN BREAKDOWN ===\n"+Object.entries(apMap).map(function(e){return"- "+e[0]+": "+e[1]+" tasks";}).join("\n")+"\n\n";
+  ctx+="=== COMPANY BREAKDOWN ===\n"+Object.entries(coMap).map(function(e){return"- "+e[0]+": "+e[1]+" tasks";}).join("\n")+"\n\n";
+  ctx+="=== FULL TASK LIST ===\n"+taskLines;
+  return{ctx:ctx,taskCount:unique.length,from:from,to:to,memberCount:Object.keys(memberMap).length};
+}
+
+async function callGeminiSecure(userMsg,attachedFiles){
+  var contextData=buildAiContext();
+  var messages=_aiHistory.map(function(h){return{role:h.role,parts:[{text:h.text}]};});
+  var parts=[{text:userMsg}];
+
+  if(attachedFiles&&attachedFiles.length){
+    for(var i=0;i<attachedFiles.length;i++){
+      var f=attachedFiles[i];
+      try{
+        var b64=await readFileAsBase64(f);
+        var mime=f.name.match(/\.xlsx?$/i)?"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet":
+                 f.name.match(/\.pptx?$/i)?"application/vnd.openxmlformats-officedocument.presentationml.presentation":
+                 f.name.match(/\.docx?$/i)?"application/vnd.openxmlformats-officedocument.wordprocessingml.document":
+                 f.name.match(/\.csv$/i)?"text/csv":"text/plain";
+        parts.push({inline_data:{mime_type:mime,data:b64}});
+      }catch(e){parts.push({text:"[File: "+f.name+" — không thể đọc]"});}
+    }
+  }
+
+  messages.push({role:"user",parts:parts});
+  var r=await apiCall("ai-chat",{messages:messages,contextData:contextData.ctx});
+  if(!r.success)throw new Error(r.error||"Unknown error from AI backend");
+  return r.text;
+}
+
+function _getCurrentUserInitials(){
+  var u=getCurrentUser();
+  if(!u||!u.name)return"U";
+  var parts=u.name.trim().split(" ");
+  return parts.length>=2?(parts[0][0]+parts[parts.length-1][0]).toUpperCase():parts[0].slice(0,2).toUpperCase();
+}
+
+function renderAiMsg(role,text,showExport){
+  var greeting=$("aiGreeting");
+  if(greeting)greeting.classList.add("hidden");
+  var box=$("aiMessages");
+  if(!box)return;
+  var isUser=role==="user";
+  var msgIdx=_aiHistory.length-1;
+  var exportBtns="";
+  if(showExport){
+    exportBtns='<div class="ai-gmsg-actions">'+
+      '<button class="ai-gmsg-export" onclick="exportAiToWord('+msgIdx+')">📄 Export Word</button>'+
+      '<button class="ai-gmsg-export" onclick="exportAiToPPT('+msgIdx+')">📊 Export PowerPoint</button>'+
+    '</div>';
+  }
+  var avatarHtml=isUser?escapeHtml(_getCurrentUserInitials()):_aiHoloAvatar;
+  var html='<div class="ai-gmsg '+(isUser?"user":"ai")+'">'+
+    '<div class="ai-gmsg-avatar">'+avatarHtml+'</div>'+
+    '<div class="ai-gmsg-body"><div class="ai-gmsg-bubble">'+escapeHtml(text)+'</div>'+exportBtns+'</div>'+
+  '</div>';
+  box.insertAdjacentHTML("beforeend",html);
+  box.scrollTop=box.scrollHeight;
+}
+
+function renderTyping(){
+  var box=$("aiMessages");
+  if(!box)return;
+  var el=document.createElement("div");
+  el.id="aiTypingIndicator";el.className="ai-gmsg ai";
+  el.innerHTML='<div class="ai-gmsg-avatar">'+_aiHoloAvatar+'</div><div class="ai-typing-wrap"><div class="ai-dots"><span></span><span></span><span></span></div></div>';
+  box.appendChild(el);box.scrollTop=box.scrollHeight;
+}
+function removeTyping(){var el=document.getElementById("aiTypingIndicator");if(el)el.remove();}
+
+async function sendAiMessage(){
+  if(_aiTyping)return;
+  var input=$("aiInput");
+  var msg=(input&&input.value||"").trim();
+  if(!msg&&!_aiAttachedFiles.length)return;
+  var filesToSend=_aiAttachedFiles.slice();
+  var displayMsg=msg+(filesToSend.length?" [+"+filesToSend.length+" file(s)]":"");
+  input.value="";input.style.height="24px";
+  _aiAttachedFiles=[];renderAiFilePreview();
+  _aiTyping=true;
+  var btn=$("aiSendBtn");
+  if(btn)btn.disabled=true;
+  _aiHistory.push({role:"user",text:displayMsg});
+  renderAiMsg("user",displayMsg,false);
+  renderTyping();
+  try{
+    var reply=await callGeminiSecure(msg||"Hãy phân tích file đính kèm",filesToSend);
+    removeTyping();
+    _aiHistory.push({role:"model",text:reply});
+    renderAiMsg("model",reply,true);
+  }catch(e){
+    removeTyping();
+    var err="❌ Lỗi: "+e.message;
+    _aiHistory.push({role:"model",text:err});
+    renderAiMsg("model",err,false);
+  }
+  _aiTyping=false;
+  if(btn)btn.disabled=true;
+  if(input)input.focus();
+}
+
+function clearAiChat(){
+  _aiHistory=[];_aiAttachedFiles=[];renderAiFilePreview();
+  var box=$("aiMessages");if(box)box.innerHTML="";
+  var greeting=$("aiGreeting");if(greeting)greeting.classList.remove("hidden");
+  var input=$("aiInput");if(input){input.value="";input.style.height="24px";}
+  var btn=$("aiSendBtn");if(btn)btn.disabled=true;
+}
+
+async function exportAiToWord(msgIdx){
+  var text=_aiHistory[msgIdx]&&_aiHistory[msgIdx].text;
+  if(!text){alert("No content to export.");return;}
+  var lines=text.split("\n");
+  var html='<!DOCTYPE html><html><head><meta charset="UTF-8">'+
+    '<style>body{font-family:Arial,sans-serif;max-width:800px;margin:40px auto;color:#1e1008;line-height:1.7}'+
+    'h1{color:#4e2e18;font-size:22px;border-bottom:2px solid #d4607a;padding-bottom:8px;margin-top:28px}'+
+    'h2{color:#7a4a28;font-size:17px;margin-top:20px}h3{color:#b07848;font-size:14px}'+
+    'p{margin:6px 0}ul{margin:4px 0 10px}li{margin:3px 0}'+
+    '.meta{color:#888;font-size:12px;margin-bottom:24px;border-bottom:1px solid #e4d8cc;padding-bottom:12px}'+
+    '</style></head><body><div class="meta">🌸 HCEDS Work Planner — AI Report — '+new Date().toLocaleDateString("vi-VN")+'</div>';
+  var inList=false;
+  lines.forEach(function(line){
+    if(line.startsWith("# ")){if(inList){html+="</ul>";inList=false;}html+="<h1>"+escapeHtml(line.slice(2).trim())+"</h1>";}
+    else if(line.startsWith("## ")){if(inList){html+="</ul>";inList=false;}html+="<h2>"+escapeHtml(line.slice(3).trim())+"</h2>";}
+    else if(line.startsWith("### ")){if(inList){html+="</ul>";inList=false;}html+="<h3>"+escapeHtml(line.slice(4).trim())+"</h3>";}
+    else if(line.startsWith("- ")){if(!inList){html+="<ul>";inList=true;}html+="<li>"+escapeHtml(line.slice(2).trim())+"</li>";}
+    else if(line.trim()){if(inList){html+="</ul>";inList=false;}html+="<p>"+escapeHtml(line.trim())+"</p>";}
+    else{if(inList){html+="</ul>";inList=false;}html+="<br>";}
+  });
+  if(inList)html+="</ul>";
+  html+="</body></html>";
+  var blob=new Blob([html],{type:"application/msword;charset=utf-8"});
+  var a=document.createElement("a");a.href=URL.createObjectURL(blob);
+  a.download="HCEDS_AI_Report_"+new Date().toISOString().slice(0,10)+".doc";
+  document.body.appendChild(a);a.click();document.body.removeChild(a);
+  setTimeout(function(){URL.revokeObjectURL(a.href);},0);
+}
+
+async function exportAiToPPT(msgIdx){
+  var text=_aiHistory[msgIdx]&&_aiHistory[msgIdx].text;
+  if(!text){alert("No content to export.");return;}
+  if(typeof PptxGenJS==="undefined"){
+    await new Promise(function(resolve,reject){
+      var s=document.createElement("script");
+      s.src="https://cdn.jsdelivr.net/npm/pptxgenjs@3.12.0/dist/pptxgen.bundle.js";
+      s.onload=resolve;s.onerror=reject;document.head.appendChild(s);
+    });
+  }
+  var pptx=new PptxGenJS();
+  pptx.layout="LAYOUT_WIDE";pptx.author="HCEDS Work Planner AI";
+  var lines=text.split("\n");
+  var slides=[{title:"",bullets:[],type:"cover"}];
+  var current=slides[0];
+  lines.forEach(function(line){
+    if(line.startsWith("# ")){
+      if(current.title||current.bullets.length){current={title:line.slice(2).trim(),bullets:[],type:"section"};slides.push(current);}
+      else current.title=line.slice(2).trim();
+    }else if(line.startsWith("## ")){current={title:line.slice(3).trim(),bullets:[],type:"content"};slides.push(current);}
+    else if(line.startsWith("### ")){current.bullets.push({text:line.slice(4).trim(),level:1,bold:true});}
+    else if(line.startsWith("- ")){current.bullets.push({text:line.slice(2).trim(),level:2,bold:false});}
+    else if(line.trim()){current.bullets.push({text:line.trim(),level:1,bold:false});}
+  });
+  if(!slides[0].title&&!slides[0].bullets.length)slides.shift();
+  if(!slides.length)slides=[{title:"AI Report",bullets:[{text:text.slice(0,500),level:1,bold:false}],type:"content"}];
+
+  slides.forEach(function(slide,idx){
+    var s=pptx.addSlide();
+    s.background={color:idx===0?"4E2E18":"FFFDF9"};
+    if(idx===0){
+      s.addText("HCEDS Work Planner",{x:0.5,y:1.2,w:12,h:0.8,fontSize:32,bold:true,color:"FFFFFF",fontFace:"Arial"});
+      s.addText(slide.title||"AI Team Analysis Report",{x:0.5,y:2.2,w:12,h:0.6,fontSize:20,color:"D4A0A8",fontFace:"Arial"});
+      s.addText(new Date().toLocaleDateString("vi-VN"),{x:0.5,y:6.5,w:12,h:0.4,fontSize:12,color:"A87858",fontFace:"Arial"});
+      s.addShape(pptx.ShapeType.rect,{x:0.5,y:2.0,w:2.5,h:0.06,fill:{color:"D4607A"},line:{color:"D4607A"}});
+    }else{
+      s.addShape(pptx.ShapeType.rect,{x:0,y:0,w:13.33,h:0.95,fill:{color:"4E2E18"},line:{color:"4E2E18"}});
+      s.addText(slide.title||"",{x:0.4,y:0.1,w:12.5,h:0.75,fontSize:17,bold:true,color:"FFFFFF",fontFace:"Arial",valign:"middle"});
+      s.addText((idx+1)+"",{x:12.5,y:0.15,w:0.6,h:0.5,fontSize:11,color:"D4A0A8",fontFace:"Arial",align:"right"});
+      if(slide.bullets.length){
+        s.addText(slide.bullets.map(function(b){
+          return{text:(b.level===2?"• ":"")+b.text,
+            options:{fontSize:b.level===1?13:12,bold:b.bold,color:b.bold?"7A4A28":"4E2E18",breakLine:true,fontFace:"Arial",paraSpaceAfter:5}};
+        }),{x:0.5,y:1.15,w:12.3,h:5.4,valign:"top",fontFace:"Arial"});
+      }
+      s.addShape(pptx.ShapeType.rect,{x:0,y:6.8,w:13.33,h:0.04,fill:{color:"D4607A"},line:{color:"D4607A"}});
+      s.addText("HCEDS Work Planner · AI Report · "+new Date().toLocaleDateString("vi-VN"),
+        {x:0.5,y:6.88,w:12,h:0.28,fontSize:9,color:"A87858",fontFace:"Arial"});
+    }
+  });
+  pptx.writeFile({fileName:"HCEDS_AI_Report_"+new Date().toISOString().slice(0,10)+".pptx"});
+}
+
+function initAiChatbot(){
+  initAiInputListener();
+  var u=getCurrentUser();
+  var el=$("aiGreetingTitle");
+  if(el&&u&&u.name){
+    var first=u.name.trim().split(" ").pop();
+    el.textContent="Bé Gem giúp gì được cho chụy "+first+" đây?";
+  }
+}
+
 async function startHCEDSApp(){
   renderUserHeader();
   await loadAllData();
@@ -4646,6 +5278,7 @@ async function startHCEDSApp(){
 
   if($("assignDate"))$("assignDate").value=getVietnamToday();
 
+  initAiChatbot();
   renderAll();
 }
 
@@ -4723,6 +5356,12 @@ document.addEventListener("DOMContentLoaded", function () {
       if (btn.dataset.main === "myFunctions") {
         requestAnimationFrame(function () {
           renderDashboard();
+        });
+      }
+
+      if (btn.dataset.main === "aiAnalystSection") {
+        requestAnimationFrame(function () {
+          initAiChatbot();
         });
       }
     });
