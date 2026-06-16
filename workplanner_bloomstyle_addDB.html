@@ -847,6 +847,7 @@ tr.task-highlight td:last-child{
 /* Task ID + clickable */
 .task-link-row{cursor:pointer}
 .task-link-row:hover{background:var(--pink-pale)}
+.highlight-row{background:var(--pink-pale)!important;transition:background 2.5s ease;}
 
 /* ── AI Analyst — Gemini style ─────────────────── */
 .ai-gemini-wrap{
@@ -1899,9 +1900,9 @@ th.sortable:not(.sort-asc):not(.sort-desc) .sort-icon::after{content:"⇅"}
           <!-- Model + Search Internet — bên trong inputbox -->
           <div style="display:flex;align-items:center;justify-content:flex-end;gap:12px;padding:2px 2px 0;width:auto;border-top:1px solid var(--line-2);">
             <select id="aiModelSelect" onchange="onAiModelChange()" style="font-size:12px;padding:2px 6px;border:1px solid var(--line);border-radius:6px;background:var(--soft);color:var(--brown2);cursor:pointer;font-family:'DM Sans',sans-serif;width:160px;">
-              <option value="gemini-2.0-flash">Gemini 2.0 Flash</option>
-              <option value="gemini-2.5-flash-preview-05-20">Gemini 2.5 Flash</option>
-              <option value="gemini-2.5-flash-lite-preview-06-17">Gemini 2.5 Flash Lite</option>
+              <option value="gemini-3.5-flash">Gemini 3.5 Flash</option>
+              <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
+              <option value="gemini-2.5-flash-lite">Gemini 2.5 Flash Lite</option>
             </select>
 
             <label id="aiSearchToggleWrap" title="Only available with Gemini 2.5 Flash Lite" style="display:flex;align-items:center;gap:6px;cursor:not-allowed;opacity:0.45;user-select:none;">
@@ -3220,7 +3221,10 @@ function assignHistoryTable(tasks){
   '</tr></thead><tbody>'+
   pageItems.map(function(t){
     var s=getTaskStatus(t);
-    return '<tr class="task-link-row" onclick="goToTaskCalendarDate(\''+escapeForAction(t.date)+'\',\''+escapeForAction(t.taskId||t.id)+'\')">'+
+    var isMyTask=(t.ownerId===state.currentUserId);
+    var trClass=isMyTask?' class="task-link-row"':'';
+    var trClick=isMyTask?' onclick="navigateFromAssignHistory(\''+escapeForAction(t.id)+'\',\''+escapeForAction(t.date)+'\',\''+escapeForAction(t.taskId||t.id)+'\',\''+escapeForAction(t.ownerId)+'\')"':'';
+    return '<tr'+trClass+trClick+' data-task-id="'+escapeHtml(t.id)+'">'+
       '<td data-label="Task ID" data-col-cell="taskId"'+cs("taskId")+'><span class="task-id-pill">'+escapeHtml(t.taskId||t.id)+'</span></td>'+
       '<td data-label="Team Member" data-col-cell="member"'+cs("member")+'>'+escapeHtml(getUserNameById(t.ownerId))+'</td>'+
       '<td data-label="Task Date" data-col-cell="date"'+cs("date")+'>'+formatNiceDate(t.date)+'</td>'+
@@ -3668,8 +3672,9 @@ function taskTable(tasks,compact,context){
     var st=getTaskStatus(t);
     var taskKey=t.taskId||t.id;
     var rowAttrs=' data-calendar-task-id="'+escapeHtml(taskKey)+'" data-task-date="'+escapeHtml(t.date)+'"';
-    /* Row click: dashboard "all/completed" views are link-rows; action rows are not */
-    var isLinkRow=(compact && !showAction);
+    /* Row click: chỉ link-row khi task là của chính user hiện tại */
+    var isMyTask=(t.ownerId===state.currentUserId);
+    var isLinkRow=(compact && isMyTask);
     var rowClass=isLinkRow?' class="task-link-row"':'';
     var rowClick=isLinkRow?' onclick="goToTaskCalendarDate(\''+escapeForAction(t.date)+'\',\''+escapeForAction(taskKey)+'\')"':'';
     return '<tr'+rowClass+rowClick+rowAttrs+'>'+
@@ -3755,7 +3760,11 @@ function teamTaskTable(tasks,tableId,renderFnName){
         : '<div class="actions"><button class="success" onclick="markDone(\''+t.id+'\')">Done</button><button class="secondary" onclick="openEditTask(\''+t.id+'\')">Edit</button></div>';
     }
 
-    return '<tr>'+
+    var isMyTask=(t.ownerId===state.currentUserId);
+    var trClass=isMyTask?' class="task-link-row"':'';
+    var trClick=isMyTask?' onclick="goToTaskCalendarDate(\''+escapeForAction(t.date)+'\',\''+escapeForAction(t.taskId||t.id)+'\')"':'';
+
+    return '<tr'+trClass+trClick+'>'+
       '<td data-label="Task ID" data-col-cell="taskId"'+cs("taskId")+'><span class="task-id-pill">'+escapeHtml(t.taskId||t.id)+'</span></td>'+
       '<td data-label="Member" data-col-cell="member"'+cs("member")+'>'+escapeHtml(getUserNameById(t.ownerId))+'</td>'+
       '<td data-label="Date" data-col-cell="date"'+cs("date")+'>'+formatNiceDate(t.date)+'</td>'+
@@ -4121,6 +4130,78 @@ function focusCalendarTask(taskId){
     taskEl.classList.remove("task-highlight");
   },3000);
 }
+
+function goToAssignHistory(taskId){
+  /* Tìm task để lấy date */
+  var task=state.tasks.find(function(t){return t.id===taskId;});
+
+  /* 1. Activate đúng tab */
+  activateMainTab("teamFunctions");
+
+  /* 2. Activate team subtab Assign Task */
+  document.querySelectorAll(".team-sub-tab").forEach(function(b){b.classList.remove("active");});
+  document.querySelectorAll("#teamFunctions > .section").forEach(function(s){s.classList.remove("active");});
+  var assignBtn=[].slice.call(document.querySelectorAll(".team-sub-tab")).find(function(b){return b.dataset.teamSub==="assignJobSection";});
+  if(assignBtn)assignBtn.classList.add("active");
+  var assignSection=$("assignJobSection");
+  if(assignSection)assignSection.classList.add("active");
+
+  /* 3. Set filter date bao trùm task — clear date filter để show tất cả nếu không có date */
+  if(task && task.date){
+    /* Set from/to trùng đúng tháng chứa task */
+    var d=task.date.slice(0,7); /* yyyy-mm */
+    if($("assignHistoryTaskFrom"))$("assignHistoryTaskFrom").value=d+"-01";
+    if($("assignHistoryTaskTo"))$("assignHistoryTaskTo").value=task.date;
+  }else{
+    /* Fallback: clear date filter để show tất cả */
+    if($("assignHistoryTaskFrom"))$("assignHistoryTaskFrom").value="";
+    if($("assignHistoryTaskTo"))$("assignHistoryTaskTo").value="";
+  }
+  /* Reset các filter khác về All */
+  if($("assignHistoryAssignedFrom"))$("assignHistoryAssignedFrom").value="";
+  if($("assignHistoryAssignedTo"))$("assignHistoryAssignedTo").value="";
+  if($("assignHistoryAction"))$("assignHistoryAction").value="All";
+  if($("assignHistoryCompany"))$("assignHistoryCompany").value="All";
+  if($("assignHistoryCategory"))$("assignHistoryCategory").value="All";
+  if($("assignHistoryMember"))$("assignHistoryMember").value="All";
+
+  /* 4. Tính đúng page chứa task rồi set trước khi render */
+  var allFiltered=getAssignHistoryFilteredTasks();
+  var sorted=getSortedTasks(allFiltered,"assignHistoryTable","date","desc");
+  var taskIndex=sorted.findIndex(function(t){return t.id===taskId;});
+  if(taskIndex>=0){
+    var targetPage=Math.floor(taskIndex/TASKS_PER_PAGE)+1;
+    tablePageState["assignHistoryTable"]=targetPage;
+  }
+
+  /* 5. Render */
+  renderAssignJobAccess();
+  renderAssignMemberTasks();
+  renderAssignHistory();
+
+  /* 6. Scroll đến row và highlight */
+  setTimeout(function(){
+    var row=document.querySelector('tr[data-task-id="'+taskId+'"]');
+    if(row){
+      row.scrollIntoView({behavior:"smooth",block:"center"});
+      row.classList.add("highlight-row");
+      setTimeout(function(){row.classList.remove("highlight-row");},2500);
+    }else{
+      var list=$("assignHistoryList");
+      if(list)list.scrollIntoView({behavior:"smooth",block:"start"});
+    }
+  },600);
+}
+
+/* ── Navigation rule cho Assign Task History rows ── */
+function navigateFromAssignHistory(taskUUID, date, taskId, ownerId){
+  /* Rule: chỉ điều hướng về Planning Calendar khi task là của chính user hiện tại */
+  if(ownerId === state.currentUserId){
+    goToTaskCalendarDate(date, taskId);
+  }
+  /* Nếu là task của member khác → không làm gì, manager chỉ xem history */
+}
+
 function openTaskFromNotification(taskId,taskDate){
   if(!taskId)return;
 
@@ -4136,8 +4217,8 @@ function openTaskFromNotification(taskId,taskDate){
     });
   }
 
-  /* giới hạn chỉ task của user hiện tại */
-  if(task && task.ownerId!==state.currentUserId){
+  /* giới hạn chỉ task của user hiện tại hoặc task mà user đã assign */
+  if(task && task.ownerId!==state.currentUserId && task.assignedBy!==state.currentUserId){
     task=null;
   }
 
@@ -4149,6 +4230,12 @@ function openTaskFromNotification(taskId,taskDate){
   var panel=$("notiPanel");
   if(panel){
     panel.classList.remove("show");
+  }
+
+  /* Nếu task là của người khác (manager xem task của member) → navigate sang Assign History */
+  if(task.ownerId!==state.currentUserId){
+    goToAssignHistory(task.id);
+    return;
   }
 
   goToTaskCalendarDate(task.date,task.taskId||task.id);
