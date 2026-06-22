@@ -1420,8 +1420,11 @@ th.sortable:not(.sort-asc):not(.sort-desc) .sort-icon::after{content:"⇅"}
 
       <div class="card" style="margin-top:20px">
         <div class="card-title">
-          <h3 id="dashboardSelectedListTitle">Selected Task List</h3>
-          <span class="small" id="dashboardSelectedListCount">0 task(s)</span>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <h3 id="dashboardSelectedListTitle">Selected Task List</h3>
+            <span class="small" id="dashboardSelectedListCount">0 task(s)</span>
+          </div>
+          <button class="secondary" onclick="openCarryForwardModalDashboard()">Carry Forward</button>
         </div>
         <div id="dashboardTaskList"></div>
       </div>
@@ -1706,8 +1709,11 @@ th.sortable:not(.sort-asc):not(.sort-desc) .sort-icon::after{content:"⇅"}
 
       <div class="card" style="margin-top:20px">
         <div class="card-title">
-          <h3 id="teamSelectedListTitle">Team Task List</h3>
-          <span class="small" id="teamSelectedListCount">0 task(s)</span>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <h3 id="teamSelectedListTitle">Team Task List</h3>
+            <span class="small" id="teamSelectedListCount">0 task(s)</span>
+          </div>
+          <button class="secondary" onclick="openCarryForwardModalDashboard()">Carry Forward</button>
         </div>
         <div id="teamTaskList"></div>
       </div>
@@ -2025,6 +2031,7 @@ var EDGE_API="https://tznxjsteeuwaibguklph.supabase.co/functions/v1/smart-functi
 
 var STORAGE_KEY="hcedsEnterprisePlanner_v3_full";
 var LOGIN_SESSION_KEY=STORAGE_KEY+"_loginUserId";
+var COL_VISIBILITY_KEY=STORAGE_KEY+"_colVisibility";
 
 var defaultState={
   currentUserId:null,
@@ -2037,8 +2044,6 @@ var defaultState={
 };
 
 var state=loadState();
-
-/* users loaded from Supabase in populateLoginUsers() */
 
 var selectedDate=getVietnamToday();
 var calendarMonthDate=new Date(selectedDate+"T00:00:00");
@@ -2069,6 +2074,30 @@ var tableColVisibility={
   assignMemberTaskTable:{}
 };
 var COL_TOGGLE_OPEN={}; /* track dropdown open state */
+
+/* ---- Column Visibility Persistence ---- */
+function loadColVisibility(){
+  try{
+    var raw=localStorage.getItem(COL_VISIBILITY_KEY);
+    if(!raw)return;
+    var saved=JSON.parse(raw);
+    /* Merge saved into tableColVisibility — only keys that still exist */
+    Object.keys(saved).forEach(function(tid){
+      if(tableColVisibility.hasOwnProperty(tid)){
+        tableColVisibility[tid]=saved[tid]||{};
+      }
+    });
+  }catch(e){/* ignore parse errors */}
+}
+
+function saveColVisibility(){
+  try{
+    localStorage.setItem(COL_VISIBILITY_KEY,JSON.stringify(tableColVisibility));
+  }catch(e){/* quota exceeded — silently skip */}
+}
+
+/* Restore saved column visibility immediately after both functions and tableColVisibility are ready */
+loadColVisibility();
 
 /* Column definitions per table */
 var TABLE_COLS_MAP={
@@ -2458,6 +2487,17 @@ function addDaysToDateString(dateStr,days){
 }
 function getMinimumCarryForwardDate(sourceDate){
   return addDaysToDateString(sourceDate,1);
+}
+
+/* Helper: returns the most relevant date to use as carry-forward source date
+   from My Dashboard or Team Dashboard context.
+   Priority: dashFilterFrom date if set and not future, else today. */
+function getDashboardCarryDate(){
+  var fromEl=$("dashFilterFrom");
+  var fromDate=fromEl&&fromEl.value?fromEl.value:null;
+  var today=getVietnamToday();
+  if(fromDate&&fromDate<=today)return fromDate;
+  return today;
 }
 
 function firstDayOfCurrentMonth(){
@@ -3550,6 +3590,7 @@ function toggleCol(tid,key){
   tableColVisibility[tid][key]=!tableColVisibility[tid][key];
   _applyColVisibility(tid);
   _syncTickAll(tid);
+  saveColVisibility();
 }
 
 /* Toggle dropdown open/close: DOM only */
@@ -3575,6 +3616,7 @@ function toggleColAll(tid,show){
       inp.checked=show;
     });
   }
+  saveColVisibility();
 }
 
 /* Sync the Tick All checkbox when individual cols change */
@@ -3700,11 +3742,11 @@ function taskTable(tasks,compact,context){
       '<td data-label="Company" data-col-cell="company"'+cs("company")+'>'+escapeHtml(t.company)+'</td>'+
       '<td data-label="Work Location" data-col-cell="workLoc"'+cs("workLoc")+'>'+escapeHtml(t.workLocation||"At Office (VCO)")+'</td>'+
       '<td data-label="Allocation" data-col-cell="alloc"'+cs("alloc")+'>'+rounded(t.allocation)+'%</td>'+
-      '<td data-label="Completion" data-col-cell="compl"'+cs("compl")+'>'+
+      '<td data-label="Completion" data-col-cell="compl"'+cs("compl")+' onclick="event.stopPropagation()" onmousedown="event.stopPropagation()">'+
         (showAction
           ? (t.carriedToDate
               ? '<span style="color:var(--muted);font-size:13px;">'+rounded(t.completion)+'% </span>'
-              : '<input type="number" min="0" max="100" value="'+rounded(t.completion)+'" onchange="updateCompletion(\''+t.id+'\',this.value)">')
+              : '<input type="number" min="0" max="100" value="'+rounded(t.completion)+'" onclick="event.stopPropagation()" onmousedown="event.stopPropagation()" onfocus="event.stopPropagation()" onchange="updateCompletion(\''+t.id+'\',this.value)">')
           : rounded(t.completion)+"%")+
       '</td>'+
       '<td data-label="Status" data-col-cell="status"'+cs("status")+'><span class="status '+statusClass(st)+'">'+st+'</span></td>'+
@@ -3713,8 +3755,8 @@ function taskTable(tasks,compact,context){
       '<td data-label="Action" data-col-cell="act"'+cs("act")+'>'+
         (showAction
           ? (t.carriedToDate
-              ? '<div class="actions"><button class="success" disabled style="opacity:.35;cursor:not-allowed;background:#bbb;border-color:#bbb;" title="Locked: task carried forward">Done</button><button class="secondary" onclick="openEditTask(\''+t.id+'\')" title="Only Note can be edited">Edit</button></div>'
-              : '<div class="actions"><button class="success" onclick="markDone(\''+t.id+'\')">Done</button><button class="secondary" onclick="openEditTask(\''+t.id+'\')">Edit</button></div>')
+              ? '<div class="actions" onclick="event.stopPropagation()"><button class="success" disabled style="opacity:.35;cursor:not-allowed;background:#bbb;border-color:#bbb;" title="Locked: task carried forward">Done</button><button class="secondary" onclick="openEditTask(\''+t.id+'\')" title="Only Note can be edited">Edit</button></div>'
+              : '<div class="actions" onclick="event.stopPropagation()"><button class="success" '+(rounded(t.completion)>=100?'disabled style="opacity:.35;cursor:not-allowed;" title="Already 100% complete"':'')+' onclick="markDone(\''+t.id+'\')">Done</button><button class="secondary" onclick="openEditTask(\''+t.id+'\')">Edit</button></div>')
           : '')+
       '</td>'+
       '<td data-label="Created" data-col-cell="created"'+cs("created")+'>'+escapeHtml(getAssignmentText(t))+'</td>'+
@@ -3771,8 +3813,8 @@ function teamTaskTable(tasks,tableId,renderFnName){
     var actionCell='';
     if(canAct && t.ownerId===state.currentUserId){
       actionCell=t.carriedToDate
-        ? '<div class="actions"><button class="success" disabled style="opacity:.35;cursor:not-allowed;background:#bbb;border-color:#bbb;" title="Locked">Done</button><button class="secondary" onclick="openEditTask(\''+t.id+'\')" title="Only Note can be edited">Edit</button></div>'
-        : '<div class="actions"><button class="success" onclick="markDone(\''+t.id+'\')">Done</button><button class="secondary" onclick="openEditTask(\''+t.id+'\')">Edit</button></div>';
+        ? '<div class="actions" onclick="event.stopPropagation()"><button class="success" disabled style="opacity:.35;cursor:not-allowed;background:#bbb;border-color:#bbb;" title="Locked">Done</button><button class="secondary" onclick="openEditTask(\''+t.id+'\')" title="Only Note can be edited">Edit</button></div>'
+        : '<div class="actions" onclick="event.stopPropagation()"><button class="success" '+(rounded(t.completion)>=100?'disabled style="opacity:.35;cursor:not-allowed;" title="Already 100% complete"':'')+' onclick="markDone(\''+t.id+'\')">Done</button><button class="secondary" onclick="openEditTask(\''+t.id+'\')">Edit</button></div>';
     }
 
     var isMyTask=(t.ownerId===state.currentUserId);
@@ -4420,15 +4462,46 @@ function openCarryForwardModal(sourceDate){
   var minTargetDate=getMinimumCarryForwardDate(sourceDate);
 
   $("carryForwardSourceDate").value=sourceDate;
+  $("carryForwardSourceDate").dataset.mode="single";
 
   $("carryForwardSourceLabel").textContent=
     "Source date: "+formatNiceDate(sourceDate)+
     " / Earliest carry date: "+formatNiceDate(minTargetDate);
 
-  // Default là task date + 1
   $("carryForwardTargetDate").value=minTargetDate;
+  $("carryForwardTargetDate").min=minTargetDate;
+  $("carryForwardTargetDate").removeAttribute("max");
+  $("carryForwardTargetDate").readOnly=false;
 
-  // Cho user chọn ngày muốn carry, nhưng không được chọn cùng ngày hoặc quá khứ so với task date
+  renderCarryForwardTaskList(tasks);
+  $("carryForwardModal").classList.add("show");
+}
+
+/* Dashboard carry forward: load tất cả carryable tasks trong range filter,
+   không giới hạn 1 ngày. Target date phải sau ngày muộn nhất của các task được chọn. */
+function openCarryForwardModalDashboard(){
+  var from=$("dashFilterFrom").value||"0000-01-01";
+  var to=$("dashFilterTo").value||"9999-12-31";
+  var today=getVietnamToday();
+
+  var tasks=myTasks()
+    .filter(function(t){return t.date>=from&&t.date<=to;})
+    .filter(function(t){return t.date<=today;})
+    .filter(function(t){return !t.carriedToDate;})
+    .filter(function(t){return ["Pending","In Progress","To-do"].includes(getTaskStatus(t));})
+    .sort(function(a,b){return a.date===b.date?Number(b.allocation)-Number(a.allocation):a.date.localeCompare(b.date);});
+
+  var latestDate=tasks.reduce(function(max,t){return t.date>max?t.date:max;},today);
+  var minTargetDate=addDaysToDateString(latestDate,1);
+
+  $("carryForwardSourceDate").value=latestDate;
+  $("carryForwardSourceDate").dataset.mode="multi";
+
+  $("carryForwardSourceLabel").textContent=
+    "Dashboard carry forward / Range: "+formatNiceDate(from)+" → "+formatNiceDate(to)+
+    " / Earliest carry date: "+formatNiceDate(minTargetDate);
+
+  $("carryForwardTargetDate").value=minTargetDate;
   $("carryForwardTargetDate").min=minTargetDate;
   $("carryForwardTargetDate").removeAttribute("max");
   $("carryForwardTargetDate").readOnly=false;
@@ -4452,6 +4525,7 @@ function renderCarryForwardTaskList(tasks){
       '<th><label style="margin:0;display:flex;align-items:center;gap:6px;"><input id="carryForwardSelectAll" type="checkbox" style="width:auto;" onchange="toggleCarryForwardSelectAll()">Select</label></th>'+
       '<th>Task ID</th>'+
       '<th>Task Name</th>'+
+      '<th style="white-space:nowrap;">Current Date</th>'+
       '<th>Assignment</th>'+
       '<th>Work Location</th>'+
       '<th>Company</th>'+
@@ -4464,11 +4538,20 @@ function renderCarryForwardTaskList(tasks){
     '</tr></thead><tbody>'+
     tasks.map(function(t){
       var s=getTaskStatus(t);
+      /* Latest date: t.date là ngày hiện tại của task
+         (original nếu chưa carry, ngày mới nhất nếu đã từng carry sang đây) */
+      var latestDate=t.date;
+      var latestDateLabel=formatNiceDate(latestDate);
+      /* Nếu task được carry tới đây từ ngày khác, highlight */
+      var dateStyle=t.carriedFromDate
+        ?'style="color:var(--brown2);font-weight:600;"'
+        :'';
 
       return '<tr>'+
         '<td data-label="Select"><input class="carry-forward-checkbox" type="checkbox" value="'+t.id+'"></td>'+
         '<td data-label="Task ID"><span class="task-id-pill">'+escapeHtml(t.taskId||t.id)+'</span></td>'+
         '<td data-label="Task Name"><strong>'+escapeHtml(t.name)+'</strong></td>'+
+        '<td data-label="Current Date" '+dateStyle+'>'+latestDateLabel+'</td>'+
         '<td data-label="Assignment">'+escapeHtml(getAssignmentText(t))+'</td>'+
         '<td data-label="Work Location">'+escapeHtml(t.workLocation||"At Office (VCO)")+'</td>'+
         '<td data-label="Company">'+escapeHtml(t.company)+'</td>'+
@@ -4494,7 +4577,7 @@ function toggleCarryForwardSelectAll(){
 async function confirmCarryForward(){
   var sourceDate=$("carryForwardSourceDate").value;
   var targetDate=$("carryForwardTargetDate").value;
-  var minTargetDate=getMinimumCarryForwardDate(sourceDate);
+  var isMultiMode=$("carryForwardSourceDate").dataset.mode==="multi";
 
   if(!sourceDate){
     setMessage("carryForwardMessage","Source date is missing.","err");
@@ -4503,19 +4586,6 @@ async function confirmCarryForward(){
 
   if(!targetDate){
     setMessage("carryForwardMessage","Please select target date.","err");
-    return;
-  }
-
-  // Rule chính:
-  // Carry Forward chỉ được sang bất kì ngày não miễn là ngày sau ngày của task, hhuhu sửa mún xỉu
-  // Cho phép task date + n, nhưng không cho cùng ngày hoặc quá khứ.
-  if(targetDate<=sourceDate){
-    setMessage(
-      "carryForwardMessage",
-      "Carry forward date must be after the task date. Earliest date is "+minTargetDate+".",
-      "err"
-    );
-    $("carryForwardTargetDate").value=minTargetDate;
     return;
   }
 
@@ -4538,10 +4608,37 @@ async function confirmCarryForward(){
     return;
   }
 
-  // Bảo vệ thêm: task được chọn phải đúng sourceDate của modal
-  if(selected.some(function(t){return t.date!==sourceDate;})){
-    setMessage("carryForwardMessage","Selected tasks do not match the source date.","err");
-    return;
+  if(isMultiMode){
+    /* Multi-date mode: target phải sau ngày muộn nhất trong các task được chọn */
+    var maxTaskDate=selected.reduce(function(max,t){return t.date>max?t.date:max;},"0000-01-01");
+    if(targetDate<=maxTaskDate){
+      var minAllowed=addDaysToDateString(maxTaskDate,1);
+      setMessage(
+        "carryForwardMessage",
+        "Carry forward date must be after the latest selected task date ("+formatNiceDate(maxTaskDate)+"). Earliest: "+formatNiceDate(minAllowed)+".",
+        "err"
+      );
+      $("carryForwardTargetDate").value=minAllowed;
+      $("carryForwardTargetDate").min=minAllowed;
+      return;
+    }
+  } else {
+    /* Single-date mode: target phải sau sourceDate */
+    var minTargetDate=getMinimumCarryForwardDate(sourceDate);
+    if(targetDate<=sourceDate){
+      setMessage(
+        "carryForwardMessage",
+        "Carry forward date must be after the task date. Earliest date is "+minTargetDate+".",
+        "err"
+      );
+      $("carryForwardTargetDate").value=minTargetDate;
+      return;
+    }
+    /* Single-date guard: tất cả task phải đúng sourceDate */
+    if(selected.some(function(t){return t.date!==sourceDate;})){
+      setMessage("carryForwardMessage","Selected tasks do not match the source date.","err");
+      return;
+    }
   }
 
   var add=selected.reduce(function(s,t){
@@ -4567,17 +4664,16 @@ async function confirmCarryForward(){
   var newTasks=[];
   selected.forEach(function(t){
     t.carriedToDate=targetDate;
-    /* Giữ nguyên allocation và completion cho tất cả trạng thái (Pending, In Progress, To-do) */
     var newTask=Object.assign({},t,{
       id:"task_"+Date.now()+"_"+Math.random().toString(16).slice(2),
       taskId:t.taskId,
       date:targetDate,
       completion:t.completion,
       allocation:t.allocation,
-      carriedFromDate:sourceDate,
+      carriedFromDate:t.date,
       carriedToDate:null,
       originalTaskId:t.id,
-      note:(t.note||"")+(t.note?" | ":"")+"Carried forward from "+sourceDate
+      note:(t.note||"")+(t.note?" | ":"")+"Carried forward from "+t.date
     });
     state.tasks.push(newTask);
     newTasks.push(newTask);
