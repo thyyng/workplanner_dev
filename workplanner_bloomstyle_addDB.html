@@ -1424,7 +1424,6 @@ th.sortable:not(.sort-asc):not(.sort-desc) .sort-icon::after{content:"⇅"}
             <h3 id="dashboardSelectedListTitle">Selected Task List</h3>
             <span class="small" id="dashboardSelectedListCount">0 task(s)</span>
           </div>
-          <button class="secondary" onclick="openCarryForwardModalDashboard()">Carry Forward</button>
         </div>
         <div id="dashboardTaskList"></div>
       </div>
@@ -1713,7 +1712,6 @@ th.sortable:not(.sort-asc):not(.sort-desc) .sort-icon::after{content:"⇅"}
             <h3 id="teamSelectedListTitle">Team Task List</h3>
             <span class="small" id="teamSelectedListCount">0 task(s)</span>
           </div>
-          <button class="secondary" onclick="openCarryForwardModalDashboard()">Carry Forward</button>
         </div>
         <div id="teamTaskList"></div>
       </div>
@@ -2489,16 +2487,6 @@ function getMinimumCarryForwardDate(sourceDate){
   return addDaysToDateString(sourceDate,1);
 }
 
-/* Helper: returns the most relevant date to use as carry-forward source date
-   from My Dashboard or Team Dashboard context.
-   Priority: dashFilterFrom date if set and not future, else today. */
-function getDashboardCarryDate(){
-  var fromEl=$("dashFilterFrom");
-  var fromDate=fromEl&&fromEl.value?fromEl.value:null;
-  var today=getVietnamToday();
-  if(fromDate&&fromDate<=today)return fromDate;
-  return today;
-}
 
 function firstDayOfCurrentMonth(){
   return getVietnamToday().slice(0,8)+"01";
@@ -4477,38 +4465,6 @@ function openCarryForwardModal(sourceDate){
   $("carryForwardModal").classList.add("show");
 }
 
-/* Dashboard carry forward: load tất cả carryable tasks trong range filter,
-   không giới hạn 1 ngày. Target date phải sau ngày muộn nhất của các task được chọn. */
-function openCarryForwardModalDashboard(){
-  var from=$("dashFilterFrom").value||"0000-01-01";
-  var to=$("dashFilterTo").value||"9999-12-31";
-  var today=getVietnamToday();
-
-  var tasks=myTasks()
-    .filter(function(t){return t.date>=from&&t.date<=to;})
-    .filter(function(t){return t.date<=today;})
-    .filter(function(t){return !t.carriedToDate;})
-    .filter(function(t){return ["Pending","In Progress","To-do"].includes(getTaskStatus(t));})
-    .sort(function(a,b){return a.date===b.date?Number(b.allocation)-Number(a.allocation):a.date.localeCompare(b.date);});
-
-  var latestDate=tasks.reduce(function(max,t){return t.date>max?t.date:max;},today);
-  var minTargetDate=addDaysToDateString(latestDate,1);
-
-  $("carryForwardSourceDate").value=latestDate;
-  $("carryForwardSourceDate").dataset.mode="multi";
-
-  $("carryForwardSourceLabel").textContent=
-    "Dashboard carry forward / Range: "+formatNiceDate(from)+" → "+formatNiceDate(to)+
-    " / Earliest carry date: "+formatNiceDate(minTargetDate);
-
-  $("carryForwardTargetDate").value=minTargetDate;
-  $("carryForwardTargetDate").min=minTargetDate;
-  $("carryForwardTargetDate").removeAttribute("max");
-  $("carryForwardTargetDate").readOnly=false;
-
-  renderCarryForwardTaskList(tasks);
-  $("carryForwardModal").classList.add("show");
-}
 
 function closeCarryForwardModal(){
   $("carryForwardModal").classList.remove("show");
@@ -4700,6 +4656,7 @@ function setDefaultDashboardFilters(){
   $("dashFilterCategory").value="All";
   $("dashFilterStatus").value="All";
   if($("dashFilterKeyword"))$("dashFilterKeyword").value="";
+  dashboardSelectedType="all";
 }
 
 function getDashboardFilteredTasks(){
@@ -4707,14 +4664,12 @@ function getDashboardFilteredTasks(){
   var to=$("dashFilterTo").value||"9999-12-31";
   var company=$("dashFilterCompany").value;
   var category=$("dashFilterCategory").value;
-  var status=$("dashFilterStatus").value;
   var kw=($("dashFilterKeyword")?$("dashFilterKeyword").value:"").trim().toLowerCase();
 
   return myTasks()
     .filter(function(t){return t.date>=from&&t.date<=to})
     .filter(function(t){return company==="All"||t.company===company})
     .filter(function(t){return category==="All"||t.category===category})
-    .filter(function(t){return status==="All"||getTaskStatus(t)===status})
     .filter(function(t){return !kw||(t.name||"").toLowerCase().includes(kw)})
     .sort(function(a,b){return a.date===b.date?Number(b.allocation)-Number(a.allocation):a.date.localeCompare(b.date)});
 }
@@ -4743,9 +4698,45 @@ function getDashboardTasksByType(type,tasks){
   return unique;
 }
 
+/* Convert card-type key to status string for filtering.
+   Status is evaluated on the LATEST version of each logical task only
+   (i.e. after uniqueTasksByTaskId dedup), so a carried task is judged
+   by its newest date entry, not the archived source record. */
+function applyStatusTypeFilter(tasks, type){
+  if(type==="all")return tasks;
+  var map={pending:"Pending",inProgress:"In Progress",todo:"To-do",completed:"Completed"};
+  var status=map[type];
+  if(!status)return tasks;
+  /* Resolve latest version of each task, filter by status, then return
+     the matching task IDs so we can reconstruct the full raw list
+     (charts need all rows for correct allocation math). */
+  var latestById={};
+  tasks.forEach(function(t){
+    var key=getLogicalTaskKey(t);
+    if(!latestById[key]||String(t.date||"")>String(latestById[key].date||"")){
+      latestById[key]=t;
+    }
+  });
+  var qualifiedKeys={};
+  Object.keys(latestById).forEach(function(k){
+    if(getTaskStatus(latestById[k])===status) qualifiedKeys[k]=true;
+  });
+  return tasks.filter(function(t){return qualifiedKeys[getLogicalTaskKey(t)];});
+}
+
+/* Sync status dropdown to match selected card type */
+function syncStatusDropdown(dropdownId, type){
+  var el=$(dropdownId);
+  if(!el)return;
+  var map={all:"All",pending:"Pending",inProgress:"In Progress",todo:"To-do",completed:"Completed"};
+  el.value=map[type]||"All";
+}
+
 function setDashboardSelectedType(type){
   dashboardSelectedType=type;
   tablePageState["dashTaskTable"]=1;
+  syncStatusDropdown("dashFilterStatus", type);
+  dashChartFilter={category:null,actionPlan:null,company:null};
   renderDashboard();
 }
 
@@ -4776,7 +4767,8 @@ function renderDashboardSummary(tasks){
 }
 
 function renderDashboardSelectedTaskList(tasks){
-  var selected=getDashboardTasksByType(dashboardSelectedType,tasks);
+  /* tasks is already filtered by status + cross-chart; just render */
+  var unique=uniqueTasksByTaskId(tasks);
 
   var label={
     all:"All Tasks",
@@ -4787,11 +4779,10 @@ function renderDashboardSelectedTaskList(tasks){
   };
 
   $("dashboardSelectedListTitle").textContent=label[dashboardSelectedType];
-  $("dashboardSelectedListCount").textContent=selected.length+" task(s)";
-  /* Show action buttons for all/pending/inProgress/todo — completed stays link-only */
+  $("dashboardSelectedListCount").textContent=unique.length+" task(s)";
   var actionableTypes=["all","pending","inProgress","todo"];
   var ctx=actionableTypes.indexOf(dashboardSelectedType)>=0?"dashFull":null;
-  $("dashboardTaskList").innerHTML=taskTable(selected,true,ctx);
+  $("dashboardTaskList").innerHTML=taskTable(unique,true,ctx);
 }
 
 function groupTaskCount(tasks,field){
@@ -5063,7 +5054,7 @@ function drawPieChart(canvasId, legendId, groupedData, emptyMessage, activeValue
   var av = canvas._activeValue !== undefined ? canvas._activeValue : null;
   var clickFn = canvas._onClickFn || null;
   var hasFilter = av !== null;
-  var entries = Object.keys(gd).map(function(k){ return [k, gd[k]]; });
+  var entries = Object.keys(gd).map(function(k){ return [k, gd[k]]; }).sort(function(a,b){return b[1]-a[1];});
   if (!entries.length) { drawEmptyChart(canvas, emptyMessage); legend.innerHTML = ''; return; }
   var total = entries.reduce(function(s, e){ return s + e[1]; }, 0);
   var rv = setupCanvas(canvas), ctx = rv.ctx, width = rv.width, height = rv.height;
@@ -5167,7 +5158,7 @@ function drawCompanyBarChart(tasks, canvasId, legendId, activeValue, onClickFn) 
   var clickFn = canvas._onClickFn  || null;
   var hasFilter = av !== null;
   var counts = groupTaskCount(data, 'company');
-  var entries = Object.keys(counts).map(function(k){ return [k, counts[k]]; });
+  var entries = Object.keys(counts).map(function(k){ return [k, counts[k]]; }).sort(function(a,b){return b[1]-a[1];});
   if (!entries.length) { drawEmptyChart(canvas, 'No company data available'); legend.innerHTML = ''; return; }
   var rv = setupCanvas(canvas), ctx = rv.ctx, width = rv.width, height = rv.height;
   var pad = { top:42, right:36, bottom:76, left:62 };
@@ -5489,12 +5480,15 @@ if (typeof ResizeObserver !== 'undefined') {
 }
 
 function renderDashboard(){
+  /* pipeline: base (date/company/category/keyword) → status card → cross-chart filter */
   var baseTasks=getDashboardFilteredTasks();
-  var tasks=getDashCrossFilteredTasks(baseTasks);
+  var statusTasks=applyStatusTypeFilter(baseTasks, dashboardSelectedType);
+  var tasks=getDashCrossFilteredTasks(statusTasks);
   updateCrossFilterUI();
+  /* cards reflect current cross-filter selection so clicking a chart slice updates counts */
   renderDashboardSummary(tasks);
   renderDashboardSelectedTaskList(tasks);
-  if(isDashboardVisible()){requestAnimationFrame(function(){renderDashboardCharts(baseTasks,tasks);});}
+  if(isDashboardVisible()){requestAnimationFrame(function(){renderDashboardCharts(statusTasks,tasks);});}
 }
 
 /* Team */
@@ -5505,6 +5499,7 @@ function setDefaultTeamDashboardFilters(){
   $("teamFilterCompany").value="All";
   $("teamFilterStatus").value="All";
   if($("teamFilterKeyword"))$("teamFilterKeyword").value="";
+  teamDashboardSelectedType="all";
 }
 
 function getTeamFilteredTasks(){
@@ -5512,7 +5507,6 @@ function getTeamFilteredTasks(){
   var to=$("teamFilterTo").value||"9999-12-31";
   var member=$("teamFilterMember").value;
   var company=$("teamFilterCompany").value;
-  var status=$("teamFilterStatus").value;
   var kw=($("teamFilterKeyword")?$("teamFilterKeyword").value:"").trim().toLowerCase();
   /* All users can see all team tasks */
   var allIds=state.users.map(function(u){return u.id});
@@ -5522,7 +5516,6 @@ function getTeamFilteredTasks(){
     .filter(function(t){return t.date>=from&&t.date<=to})
     .filter(function(t){return member==="All"||t.ownerId===member})
     .filter(function(t){return company==="All"||t.company===company})
-    .filter(function(t){return status==="All"||getTaskStatus(t)===status})
     .filter(function(t){return !kw||(t.name||"").toLowerCase().includes(kw)})
     .sort(function(a,b){return a.date===b.date?Number(b.allocation)-Number(a.allocation):a.date.localeCompare(b.date)});
 }
@@ -5530,6 +5523,8 @@ function getTeamFilteredTasks(){
 function setTeamDashboardSelectedType(type){
   teamDashboardSelectedType=type;
   tablePageState["teamTaskTable"]=1;
+  syncStatusDropdown("teamFilterStatus", type);
+  teamChartFilter={category:null,actionPlan:null,company:null,member:null};
   renderTeamDashboard();
 }
 
@@ -5560,7 +5555,8 @@ function renderTeamDashboardSummary(tasks){
 }
 
 function renderTeamDashboardSelectedTaskList(tasks){
-  var selected=getDashboardTasksByType(teamDashboardSelectedType,tasks);
+  /* tasks is already filtered by status + cross-chart; just render */
+  var unique=uniqueTasksByTaskId(tasks);
 
   var label={
     all:"All Team Tasks",
@@ -5571,8 +5567,8 @@ function renderTeamDashboardSelectedTaskList(tasks){
   };
 
   $("teamSelectedListTitle").textContent=label[teamDashboardSelectedType];
-  $("teamSelectedListCount").textContent=selected.length+" task(s)";
-  $("teamTaskList").innerHTML=teamTaskTable(selected);
+  $("teamSelectedListCount").textContent=unique.length+" task(s)";
+  $("teamTaskList").innerHTML=teamTaskTable(unique);
 }
 
 /* ---- Cross-filter helpers ---- */
@@ -5674,13 +5670,16 @@ function renderTeamDashboard(){
     ?"Current user: "+user.name+(user.isManager?" / Manager":"")
     :"";
 
+  /* pipeline: base (date/member/company/keyword) → status card → cross-chart filter */
   var baseTasks=getTeamFilteredTasks();
-  var tasks=getTeamCrossFilteredTasks(baseTasks);
+  var statusTasks=applyStatusTypeFilter(baseTasks, teamDashboardSelectedType);
+  var tasks=getTeamCrossFilteredTasks(statusTasks);
 
   updateCrossFilterUI();
+  /* cards reflect current cross-filter selection so clicking a chart slice updates counts */
   renderTeamDashboardSummary(tasks);
   renderTeamDashboardSelectedTaskList(tasks);
-  if(isTeamDashboardVisible()){requestAnimationFrame(function(){renderTeamDashboardCharts(baseTasks,tasks);}); }
+  if(isTeamDashboardVisible()){requestAnimationFrame(function(){renderTeamDashboardCharts(statusTasks,tasks);}); }
 }
 
 function renderAssignJobAccess(){
@@ -6530,12 +6529,16 @@ document.addEventListener("DOMContentLoaded", function () {
     });
   });
 
+  /* helper: map status dropdown value → selectedType key */
+  function statusValueToType(val){
+    var m={"All":"all","Pending":"pending","In Progress":"inProgress","To-do":"todo","Completed":"completed"};
+    return m[val]||"all";
+  }
   [
     "dashFilterFrom",
     "dashFilterTo",
     "dashFilterCompany",
-    "dashFilterCategory",
-    "dashFilterStatus"
+    "dashFilterCategory"
   ].forEach(function (id) {
     var el = $(id);
     if (el) {
@@ -6548,6 +6551,16 @@ document.addEventListener("DOMContentLoaded", function () {
       });
     }
   });
+  /* dashFilterStatus dropdown syncs dashboardSelectedType */
+  var dashStatusEl=$("dashFilterStatus");
+  if(dashStatusEl){
+    dashStatusEl.addEventListener("change", function(){
+      dashboardSelectedType=statusValueToType(dashStatusEl.value);
+      tablePageState["dashTaskTable"]=1;
+      dashChartFilter={category:null,actionPlan:null,company:null};
+      requestAnimationFrame(function(){renderDashboard();});
+    });
+  }
   [
     "assignHistoryMember",
     "assignHistoryTaskFrom",
@@ -6572,19 +6585,29 @@ document.addEventListener("DOMContentLoaded", function () {
     "teamFilterFrom",
     "teamFilterTo",
     "teamFilterMember",
-    "teamFilterCompany",
-    "teamFilterStatus"
+    "teamFilterCompany"
   ].forEach(function (id) {
     var el = $(id);
     if (el) {
       el.addEventListener("change", function () {
         tablePageState["teamTaskTable"]=1;
+        teamChartFilter={category:null,actionPlan:null,company:null,member:null};
         requestAnimationFrame(function () {
           renderTeamDashboard();
         });
       });
     }
   });
+  /* teamFilterStatus dropdown syncs teamDashboardSelectedType */
+  var teamStatusEl=$("teamFilterStatus");
+  if(teamStatusEl){
+    teamStatusEl.addEventListener("change", function(){
+      teamDashboardSelectedType=statusValueToType(teamStatusEl.value);
+      tablePageState["teamTaskTable"]=1;
+      teamChartFilter={category:null,actionPlan:null,company:null,member:null};
+      requestAnimationFrame(function(){renderTeamDashboard();});
+    });
+  }
   [
     "assignMember",
     "assignDate"
