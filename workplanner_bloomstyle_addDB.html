@@ -475,18 +475,147 @@ tr:last-child td{border-bottom:0}
   margin-top:14px;
 }
 
+.ref-section-header{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  margin-bottom:0;
+  width:100%;
+}
+
+.ref-section-header h3{
+  margin:0;
+  flex:1;
+}
+
+.ref-filter-wrap{
+  position:relative;
+  flex-shrink:0;
+}
+
+.ref-filter-btn{
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  font-size:11px;
+  font-weight:400;
+  font-family:'DM Sans',sans-serif;
+  padding:3px 10px 3px 10px;
+  border:1.5px solid var(--line);
+  border-radius:8px;
+  background:#fff;
+  color:var(--text);
+  cursor:pointer;
+  white-space:nowrap;
+  line-height:1.6;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236a4030' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;
+  background-position:right 7px center;
+  background-size:12px 12px;
+  padding-right:24px;
+  transition:border-color .15s, box-shadow .15s;
+}
+
+.ref-filter-btn:hover{background-color:var(--soft);}
+
+.ref-filter-btn .chevron{display:none;}
+
+.ref-filter-wrap.open .ref-filter-btn{
+  border-color:var(--pink);
+  box-shadow:0 0 0 3px rgba(212,96,122,.12);
+}
+
+.ref-filter-menu{
+  display:none;
+  position:absolute;
+  top:calc(100% + 4px);
+  right:0;
+  background:#fff;
+  border:1.5px solid var(--line);
+  border-radius:8px;
+  box-shadow:0 4px 12px rgba(0,0,0,.08);
+  min-width:110px;
+  z-index:200;
+  overflow:hidden;
+}
+
+.ref-filter-wrap.open .ref-filter-menu{display:block;}
+
+.ref-filter-menu button{
+  display:block;
+  width:100%;
+  text-align:left;
+  padding:7px 14px;
+  font-size:12px;
+  font-family:'DM Sans',sans-serif;
+  border:none;
+  background:none;
+  cursor:pointer;
+  color:var(--text);
+}
+
+.ref-filter-menu button:hover{background:var(--soft);}
+.ref-filter-menu button.active-opt{font-weight:700;color:var(--accent);}
+
 .ref-item{
   display:flex;
   justify-content:space-between;
   gap:10px;
   align-items:center;
-  padding:10px;
+  padding:10px 14px;
   border:1px solid var(--line);
   border-radius:8px;
   background:#fff;
 }
 
-.ref-item span{font-weight:800}
+.ref-item-ap{
+  display:flex;
+  justify-content:space-between;
+  gap:10px;
+  align-items:flex-start;
+  padding:14px;
+  border:1px solid var(--line);
+  border-radius:8px;
+  background:#fff;
+}
+
+.ref-item span{font-weight:700;font-size:0.95rem;}
+.ref-item-ap .ref-ap-name{font-weight:700;font-size:0.95rem;line-height:1.35;}
+
+.ref-status-active{
+  font-style:italic;
+  font-size:12px;
+  color:#09a127 ;
+  font-weight:500;
+}
+.ref-status-inactive{
+  font-style:italic;
+  font-size:12px;
+  color:#aaa;
+  font-weight:500;
+}
+.btn-activate{
+  padding:5px 10px;
+  font-size:12px;
+  border-radius:6px;
+  cursor:pointer;
+  font-weight:600;
+  border:1.5px solid #43bd4f;
+  background:transparent;
+  color:#43bd4f;
+}
+.btn-activate:hover{background:#edf7ee;}
+.btn-deactivate{
+  padding:5px 10px;
+  font-size:12px;
+  border-radius:6px;
+  cursor:pointer;
+  font-weight:600;
+  border:1.5px solid #aaa;
+  background:transparent;
+  color:#aaa;
+}
+.btn-deactivate:hover{background:#f4f4f4;}
 
 .mini-actions{
   display:flex;
@@ -518,6 +647,16 @@ tr:last-child td{border-bottom:0}
 
 .modal-box{
   width:min(980px,100%);
+  max-height:90vh;
+  overflow:auto;
+  padding:24px;
+  border-radius:16px;
+  background:var(--card);
+  box-shadow:0 20px 60px rgba(78,46,24,.22);
+}
+
+.modal-box-sm{
+  width:min(360px,100%);
   max-height:90vh;
   overflow:auto;
   padding:24px;
@@ -1618,7 +1757,20 @@ th.sortable:not(.sort-asc):not(.sort-desc) .sort-icon::after{content:"⇅"}
         <div class="card-title"><h2>Reference Management</h2></div>
         <div class="grid ref-grid">
           <div>
-            <h3>Categories</h3>
+            <div class="ref-section-header">
+              <h3>Categories</h3>
+              <div class="ref-filter-wrap" id="catFilterWrap">
+                <button class="ref-filter-btn" onclick="toggleRefFilter('catFilterWrap')">
+                  <span id="catFilterLabel">Active</span>
+                  <span class="chevron">▾</span>
+                </button>
+                <div class="ref-filter-menu">
+                  <button onclick="setRefFilter('catFilterWrap','catFilterLabel','active','Active')" class="active-opt">Active</button>
+                  <button onclick="setRefFilter('catFilterWrap','catFilterLabel','unactive','Unactive')">Unactive</button>
+                  <button onclick="setRefFilter('catFilterWrap','catFilterLabel','all','All')">All</button>
+                </div>
+              </div>
+            </div>
             <div class="actions" style="margin-top:12px">
               <input id="newCategory" placeholder="New category">
               <button class="primary" onclick="addReference('categories','newCategory')">Add</button>
@@ -1627,17 +1779,49 @@ th.sortable:not(.sort-asc):not(.sort-desc) .sort-icon::after{content:"⇅"}
           </div>
 
           <div>
-            <h3>Action Plans</h3>
-            <div class="grid" style="margin-top:12px">
-              <input id="newAction" placeholder="New action plan">
-              <input id="newActionKpi" placeholder="KPI">
-              <button id="addActionBtn" class="primary" onclick="addActionPlan()" disabled>Add</button>
+            <div class="ref-section-header">
+              <h3>Action Plans</h3>
+              <div class="ref-filter-wrap" id="apFilterWrap">
+                <button class="ref-filter-btn" onclick="toggleRefFilter('apFilterWrap')">
+                  <span id="apFilterLabel">Active</span>
+                  <span class="chevron">▾</span>
+                </button>
+                <div class="ref-filter-menu">
+                  <button onclick="setRefFilter('apFilterWrap','apFilterLabel','active','Active')" class="active-opt">Active</button>
+                  <button onclick="setRefFilter('apFilterWrap','apFilterLabel','unactive','Unactive')">Unactive</button>
+                  <button onclick="setRefFilter('apFilterWrap','apFilterLabel','all','All')">All</button>
+                </div>
+              </div>
+            </div>
+            <div style="margin-top:12px;display:flex;flex-direction:column;gap:8px;">
+              <div style="display:flex;gap:8px;align-items:center;">
+                <input id="newAction" placeholder="New action plan" oninput="toggleActionAddButton()" style="flex:2;min-width:0;">
+                <input id="newActionKpi" placeholder="KPI" oninput="toggleActionAddButton()" style="flex:1;min-width:0;">
+                <button id="addActionBtn" class="primary" onclick="addActionPlan()" disabled style="flex-shrink:0;">Add</button>
+              </div>
+              <div style="display:flex;gap:8px;align-items:center;">
+                <div style="flex:1;"><label style="font-size:12px;color:var(--muted);">Valid From</label><input id="newActionValidFrom" type="date"></div>
+                <div style="flex:1;"><label style="font-size:12px;color:var(--muted);">Valid To</label><input id="newActionValidTo" type="date"></div>
+              </div>
             </div>
             <div id="actionList" class="ref-list"></div>
           </div>
 
           <div>
-            <h3>Companies</h3>
+            <div class="ref-section-header">
+              <h3>Companies</h3>
+              <div class="ref-filter-wrap" id="compFilterWrap">
+                <button class="ref-filter-btn" onclick="toggleRefFilter('compFilterWrap')">
+                  <span id="compFilterLabel">Active</span>
+                  <span class="chevron">▾</span>
+                </button>
+                <div class="ref-filter-menu">
+                  <button onclick="setRefFilter('compFilterWrap','compFilterLabel','active','Active')" class="active-opt">Active</button>
+                  <button onclick="setRefFilter('compFilterWrap','compFilterLabel','unactive','Unactive')">Unactive</button>
+                  <button onclick="setRefFilter('compFilterWrap','compFilterLabel','all','All')">All</button>
+                </div>
+              </div>
+            </div>
             <div class="actions" style="margin-top:12px">
               <input id="newCompany" placeholder="New company">
               <button class="primary" onclick="addReference('companies','newCompany')">Add</button>
@@ -1974,6 +2158,49 @@ th.sortable:not(.sort-asc):not(.sort-desc) .sort-icon::after{content:"⇅"}
   </div>
 </div>
 
+<div id="editRefModal" class="modal">
+  <div class="modal-box-sm">
+    <div class="card-title">
+      <h2 id="editRefModalTitle">Edit</h2>
+      <button class="ghost" onclick="closeEditRefModal()">Close</button>
+    </div>
+    <input id="editRefKey" type="hidden">
+    <input id="editRefField" type="hidden">
+    <input id="editRefOldName" type="hidden">
+    <div>
+      <label id="editRefNameLabel">Name *</label>
+      <input id="editRefName" type="text" placeholder="Enter name" style="margin-top:6px;">
+    </div>
+    <div class="actions" style="margin-top:18px">
+      <button class="primary" onclick="confirmEditReference()">Save Changes</button>
+      <button class="ghost" onclick="closeEditRefModal()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<div id="editApModal" class="modal">
+  <div class="modal-box">
+    <div class="card-title">
+      <h2>Edit Action Plan</h2>
+      <button class="ghost" onclick="closeEditApModal()">Close</button>
+    </div>
+    <input id="editApOldName" type="hidden">
+    <div class="grid form-grid">
+      <div><label>Action Plan Name *</label><input id="editApName" type="text" placeholder="Action plan name"></div>
+      <div><label>KPI *</label><input id="editApKpi" type="text" placeholder="KPI"></div>
+      <div><label>Valid From</label><input id="editApValidFrom" type="date"></div>
+      <div><label>Valid To</label><input id="editApValidTo" type="date"></div>
+    </div>
+    <div class="small" style="color:var(--muted);margin-top:8px;">
+      Leave Valid From / Valid To empty for no expiry. Action Plan is Active when today is within the valid period.
+    </div>
+    <div class="actions" style="margin-top:18px">
+      <button class="primary" onclick="confirmEditActionPlan()">Save Changes</button>
+      <button class="ghost" onclick="closeEditApModal()">Cancel</button>
+    </div>
+  </div>
+</div>
+
 <div id="editModal" class="modal">
   <div class="modal-box">
     <div class="card-title">
@@ -2253,13 +2480,13 @@ async function loadAllData(){
     }
     var refsRes=await apiCall("get-refs");
     if(refsRes.success && refsRes.data){
-      state.categories=refsRes.data.filter(function(r){return r.type==="category"}).map(function(r){return r.name});
-      state.companies=refsRes.data.filter(function(r){return r.type==="company"}).map(function(r){return r.name});
-      state.actionPlans=refsRes.data.filter(function(r){return r.type==="action_plan"}).map(function(r){return{name:r.name,kpi:r.kpi||""}});
+      state.categories=refsRes.data.filter(function(r){return r.type==="category"}).map(function(r){return{name:r.name,active:r.active!==false}});
+      state.companies=refsRes.data.filter(function(r){return r.type==="company"}).map(function(r){return{name:r.name,active:r.active!==false}});
+      state.actionPlans=refsRes.data.filter(function(r){return r.type==="action_plan"}).map(function(r){return{name:r.name,kpi:r.kpi||"",validFrom:r.valid_from||"",validTo:r.valid_to||""}});
 
       /* Pre-assign màu cố định cho tất cả labels ngay khi load — đảm bảo màu không đổi khi cross-filter */
-      state.categories.forEach(function(c){getChartColor(c);});
-      state.companies.forEach(function(c){getChartColor(c);});
+      state.categories.forEach(function(c){getChartColor(c.name);});
+      state.companies.forEach(function(c){getChartColor(c.name);});
       state.actionPlans.forEach(function(a){getChartColor(a.name);});
     }
 
@@ -2332,9 +2559,10 @@ async function dbMarkNotificationsRead(ids){
   }catch(e){console.error(e);}
 }
 
-async function dbSaveRef(type,name,kpi){
+async function dbSaveRef(type,name,kpi,extra){
   try{
-    await apiCall("save-ref",{type:type,name:name,kpi:kpi||""});
+    var payload=Object.assign({type:type,name:name,kpi:kpi||""},extra||{});
+    await apiCall("save-ref",payload);
   }catch(e){console.error(e);}
 }
 
@@ -2344,9 +2572,10 @@ async function dbDeleteRef(type,name){
   }catch(e){console.error(e);}
 }
 
-async function dbUpdateRef(type,oldName,newName,kpi){
+async function dbUpdateRef(type,oldName,newName,kpi,extra){
   try{
-    await apiCall("update-ref",{type:type,oldName:oldName,newName:newName,kpi:kpi||""});
+    var payload=Object.assign({type:type,oldName:oldName,newName:newName,kpi:kpi||""},extra||{});
+    await apiCall("update-ref",payload);
   }catch(e){console.error(e);}
 }
 
@@ -2555,6 +2784,29 @@ function statusClass(s){
 
 function actionNames(){
   return state.actionPlans.map(function(x){return x.name});
+}
+
+/* ---- Active/Inactive helpers ---- */
+function isActionPlanActive(item){
+  var today=getVietnamToday();
+  if(!item.validFrom&&!item.validTo)return true; /* no valid period set → always active */
+  if(item.validFrom&&today<item.validFrom)return false; /* not yet active */
+  if(item.validTo&&today>item.validTo)return false;    /* expired */
+  return true;
+}
+
+function activeCategories(){
+  return state.categories.filter(function(c){return c.active!==false;});
+}
+
+function activeCompanies(){
+  return state.companies.filter(function(c){return c.active!==false;});
+}
+
+function activeActionNames(){
+  return state.actionPlans
+    .filter(function(x){return isActionPlanActive(x);})
+    .map(function(x){return x.name;});
 }
 
 function workDone(tasks){
@@ -3065,21 +3317,25 @@ function populateTeamSelectOptions(){
 }
 
 function renderSelectOptions(){
+  var catNames=activeCategories().map(function(c){return c.name;});
+  var compNames=activeCompanies().map(function(c){return c.name;});
+  var apNames=activeActionNames();
+
   ["todayCategory","calCategory","editCategory","assignCategory"].forEach(function(id){
-    populateSelect(id,state.categories);
+    populateSelect(id,catNames);
   });
 
   ["todayAction","calAction","editAction","assignAction"].forEach(function(id){
-    populateSelect(id,actionNames());
+    populateSelect(id,apNames);
   });
 
   ["todayCompany","calCompany","editCompany","assignCompany"].forEach(function(id){
-    populateSelect(id,state.companies);
+    populateSelect(id,compNames);
   });
 
-  populateSelect("dashFilterCompany",state.companies,true);
-  populateSelect("dashFilterCategory",state.categories,true);
-  populateSelect("teamFilterCompany",state.companies,true);
+  populateSelect("dashFilterCompany",compNames,true);
+  populateSelect("dashFilterCategory",catNames,true);
+  populateSelect("teamFilterCompany",compNames,true);
   populateTeamSelectOptions();
   populateAssignHistoryFilters();
 }
@@ -3135,9 +3391,9 @@ function populateAssignHistoryFilters(){
     }
   }
 
-  populateSelect("assignHistoryAction",actionNames(),true);
-  populateSelect("assignHistoryCompany",state.companies,true);
-  populateSelect("assignHistoryCategory",state.categories,true);
+  populateSelect("assignHistoryAction",activeActionNames(),true);
+  populateSelect("assignHistoryCompany",activeCompanies().map(function(c){return c.name;}),true);
+  populateSelect("assignHistoryCategory",activeCategories().map(function(c){return c.name;}),true);
 }
 function getAssignHistoryFilteredTasks(){
   var user=getCurrentUser();
@@ -4285,35 +4541,119 @@ function openTaskFromNotification(taskId,taskDate){
 
   goToTaskCalendarDate(task.date,task.taskId||task.id);
 }
+/* Reference filter helpers */
+function toggleRefFilter(wrapId){
+  var wrap=$(wrapId);
+  var isOpen=wrap.classList.contains("open");
+  /* close all first */
+  ["catFilterWrap","apFilterWrap","compFilterWrap"].forEach(function(id){
+    var el=$(id);
+    if(el)el.classList.remove("open");
+  });
+  if(!isOpen)wrap.classList.add("open");
+}
+
+function setRefFilter(wrapId,labelId,value,label){
+  var wrap=$(wrapId);
+  wrap.dataset.filter=value;
+  wrap.classList.remove("open");
+  $(labelId).textContent=label;
+  /* update active-opt highlight */
+  wrap.querySelectorAll(".ref-filter-menu button").forEach(function(btn){
+    btn.classList.toggle("active-opt", btn.textContent===label);
+  });
+  renderReferences();
+}
+
+function getRefFilter(wrapId){
+  var el=$(wrapId);
+  return el?el.dataset.filter||"active":"active";
+}
+
+/* close filter menus when clicking outside */
+document.addEventListener("click",function(e){
+  if(!e.target.closest(".ref-filter-wrap")){
+    ["catFilterWrap","apFilterWrap","compFilterWrap"].forEach(function(id){
+      var el=$(id);
+      if(el)el.classList.remove("open");
+    });
+  }
+});
+
 /* Reference */
 function renderReferences(){
-  renderReferenceList("categories","categoryList","category");
-  renderReferenceList("companies","companyList","company");
+  renderReferenceList("categories","categoryList","category","catFilterWrap");
+  renderReferenceList("companies","companyList","company","compFilterWrap");
   renderActionList();
 }
 
-function renderReferenceList(key,containerId,field){
-  $(containerId).innerHTML=state[key].map(function(item){
-    return '<div class="ref-item">'+
-      '<span>'+escapeHtml(item)+'</span>'+
+function renderReferenceList(key,containerId,field,wrapId){
+  var filterVal=getRefFilter(wrapId);
+  var items=state[key].filter(function(item){
+    var isActive=item.active!==false;
+    if(filterVal==="active")return isActive;
+    if(filterVal==="unactive")return !isActive;
+    return true;
+  });
+  $(containerId).innerHTML=items.map(function(item){
+    var isActive=item.active!==false;
+    return '<div class="ref-item" style="opacity:'+(isActive?1:.6)+';">'+
+      '<div style="flex:1;min-width:0;">'+
+        '<div style="font-weight:700;font-size:0.95rem;">'+escapeHtml(item.name)+'</div>'+
+        '<div class="'+(isActive?'ref-status-active':'ref-status-inactive')+'">'+
+          (isActive?'active':'unactive')+
+        '</div>'+
+      '</div>'+
       '<div class="mini-actions">'+
-        '<button class="secondary" onclick="editReference(\''+key+'\',\''+escapeForAction(item)+'\',\''+field+'\')">Edit</button>'+
-        '<button class="danger" onclick="deleteReference(\''+key+'\',\''+escapeForAction(item)+'\',\''+field+'\')">Delete</button>'+
+        '<button class="'+(isActive?'btn-deactivate':'btn-activate')+'" onclick="toggleRefActive(\''+key+'\',\''+escapeForAction(item.name)+'\',\''+field+'\')">'+
+          (isActive?'Unactive':'Active')+'</button>'+
+        '<button class="secondary" onclick="editReference(\''+key+'\',\''+escapeForAction(item.name)+'\',\''+field+'\')">Edit</button>'+
+        '<button class="danger" onclick="deleteReference(\''+key+'\',\''+escapeForAction(item.name)+'\',\''+field+'\')">Delete</button>'+
       '</div>'+
     '</div>';
-  }).join("");
+  }).join("")||'<div class="small" style="color:var(--muted);padding:8px 0;">No items.</div>';
 }
 
 function renderActionList(){
-  $("actionList").innerHTML=state.actionPlans.map(function(item){
-    return '<div class="ref-item">'+
-      '<div><span>'+escapeHtml(item.name)+'</span><div class="small">KPI: '+escapeHtml(item.kpi||"-")+'</div></div>'+
-      '<div class="mini-actions">'+
+  var filterVal=getRefFilter("apFilterWrap");
+  var items=state.actionPlans.filter(function(item){
+    var active=isActionPlanActive(item);
+    if(filterVal==="active")return active;
+    if(filterVal==="unactive")return !active;
+    return true;
+  });
+  $("actionList").innerHTML=items.map(function(item){
+    var active=isActionPlanActive(item);
+    var validRange="";
+    if(item.validFrom||item.validTo){
+      validRange='<div style="font-size:11px;color:var(--muted);margin-top:2px;">'+
+        (item.validFrom?formatNiceDate(item.validFrom):"∞")+
+        ' → '+(item.validTo?formatNiceDate(item.validTo):"∞")+'</div>';
+    }
+    return '<div class="ref-item-ap" style="opacity:'+(active?1:.6)+';">'+
+      '<div style="flex:1;min-width:0;">'+
+        '<div class="ref-ap-name">'+escapeHtml(item.name)+'</div>'+
+        '<div class="'+(active?'ref-status-active':'ref-status-inactive')+'" style="margin-top:3px;">'+
+          (active?'active':'unactive')+
+        '</div>'+
+        validRange+
+        '<div style="font-size:12px;color:var(--muted);margin-top:4px;">KPI: '+escapeHtml(item.kpi||"-")+'</div>'+
+      '</div>'+
+      '<div class="mini-actions" style="flex-shrink:0;align-self:flex-start;margin-top:2px;">'+
         '<button class="secondary" onclick="editActionPlan(\''+escapeForAction(item.name)+'\')">Edit</button>'+
         '<button class="danger" onclick="deleteActionPlan(\''+escapeForAction(item.name)+'\')">Delete</button>'+
       '</div>'+
     '</div>';
-  }).join("");
+  }).join("")||'<div class="small" style="color:var(--muted);padding:8px 0;">No items.</div>';
+}
+
+async function toggleRefActive(key,name,field){
+  var item=state[key].find(function(x){return x.name===name;});
+  if(!item)return;
+  item.active=!item.active;
+  var type=key==="categories"?"category":key==="companies"?"company":"action_plan";
+  await dbUpdateRef(type,name,name,"",{active:item.active});
+  renderAll();
 }
 
 async function addReference(key,inputId){
@@ -4324,37 +4664,67 @@ async function addReference(key,inputId){
     return;
   }
 
-  if(state[key].some(function(x){return x.toLowerCase()===v.toLowerCase()})){
+  if(state[key].some(function(x){return x.name.toLowerCase()===v.toLowerCase()})){
     alert("This value already exists.");
     return;
   }
 
   var type=key==="categories"?"category":key==="companies"?"company":"action_plan";
-  state[key].push(v);
+  state[key].push({name:v,active:true});
   $(inputId).value="";
-  await dbSaveRef(type,v,"");
+  await dbSaveRef(type,v,"",{active:true});
   renderAll();
 }
 
 async function editReference(key,oldValue,field){
-  var v=prompt("Enter new name:",oldValue);
-  if(v===null)return;
+  var item=state[key].find(function(x){return x.name===oldValue;});
+  if(!item)return;
 
-  var nv=v.trim();
+  var label=key==="categories"?"Category Name *":"Company Name *";
+  var title=key==="categories"?"Edit Category":"Edit Company";
+
+  $("editRefModalTitle").textContent=title;
+  $("editRefNameLabel").textContent=label;
+  $("editRefKey").value=key;
+  $("editRefField").value=field;
+  $("editRefOldName").value=oldValue;
+  $("editRefName").value=item.name;
+  $("editRefModal").classList.add("show");
+}
+
+async function confirmEditReference(){
+  var key=$("editRefKey").value;
+  var field=$("editRefField").value;
+  var oldValue=$("editRefOldName").value;
+  var nv=$("editRefName").value.trim();
+
   if(!nv){
     alert("Name cannot be empty.");
     return;
   }
 
+  if(nv!==oldValue && state[key].some(function(x){return x.name.toLowerCase()===nv.toLowerCase();})){
+    alert("This name already exists.");
+    return;
+  }
+
   var type=key==="categories"?"category":key==="companies"?"company":"action_plan";
   var dbField=field==="actionPlan"?"action_plan":field;
+  var item=state[key].find(function(x){return x.name===oldValue;});
+  var currentActive=item?item.active!==false:true;
 
-  state[key]=state[key].map(function(x){return x===oldValue?nv:x});
-  state.tasks.forEach(function(t){if(t[field]===oldValue)t[field]=nv});
+  state[key]=state[key].map(function(x){return x.name===oldValue?Object.assign({},x,{name:nv}):x;});
+  state.tasks.forEach(function(t){if(t[field]===oldValue)t[field]=nv;});
 
-  await dbUpdateRef(type,oldValue,nv,"");
+  $("editRefModal").classList.remove("show");
+
+  await dbUpdateRef(type,oldValue,nv,"",{active:currentActive});
   await dbBulkUpdateTasksRef(dbField,oldValue,nv);
   renderAll();
+}
+
+function closeEditRefModal(){
+  $("editRefModal").classList.remove("show");
 }
 
 async function deleteReference(key,value,field){
@@ -4366,7 +4736,7 @@ async function deleteReference(key,value,field){
   if(!confirm("Delete this option?"))return;
 
   var type=key==="categories"?"category":key==="companies"?"company":"action_plan";
-  state[key]=state[key].filter(function(x){return x!==value});
+  state[key]=state[key].filter(function(x){return x.name!==value});
   await dbDeleteRef(type,value);
   renderAll();
 }
@@ -4378,9 +4748,16 @@ function toggleActionAddButton(){
 async function addActionPlan(){
   var name=$("newAction").value.trim();
   var kpi=$("newActionKpi").value.trim();
+  var validFrom=$("newActionValidFrom").value||"";
+  var validTo=$("newActionValidTo").value||"";
 
   if(!name||!kpi){
     alert("Please enter action plan and KPI.");
+    return;
+  }
+
+  if(validFrom&&validTo&&validFrom>validTo){
+    alert("Valid From must not be after Valid To.");
     return;
   }
 
@@ -4389,10 +4766,13 @@ async function addActionPlan(){
     return;
   }
 
-  state.actionPlans.push({name:name,kpi:kpi});
+  state.actionPlans.push({name:name,kpi:kpi,validFrom:validFrom,validTo:validTo});
   $("newAction").value="";
   $("newActionKpi").value="";
-  await dbSaveRef("action_plan",name,kpi);
+  $("newActionValidFrom").value="";
+  $("newActionValidTo").value="";
+  $("addActionBtn").disabled=true;
+  await dbSaveRef("action_plan",name,kpi,{valid_from:validFrom||null,valid_to:validTo||null});
   renderAll();
 }
 
@@ -4400,25 +4780,52 @@ async function editActionPlan(oldName){
   var item=state.actionPlans.find(function(x){return x.name===oldName});
   if(!item)return;
 
-  var name=prompt("Enter action plan:",item.name);
-  if(name===null)return;
+  $("editApOldName").value=oldName;
+  $("editApName").value=item.name;
+  $("editApKpi").value=item.kpi||"";
+  $("editApValidFrom").value=item.validFrom||"";
+  $("editApValidTo").value=item.validTo||"";
+  $("editApModal").classList.add("show");
+}
 
-  var finalName=name.trim();
-  if(!finalName)return;
+async function confirmEditActionPlan(){
+  var oldName=$("editApOldName").value;
+  var finalName=$("editApName").value.trim();
+  var kpi=$("editApKpi").value.trim();
+  var validFrom=$("editApValidFrom").value||"";
+  var validTo=$("editApValidTo").value||"";
 
-  var kpi=prompt("Enter KPI:",item.kpi||"");
-  if(kpi===null)return;
+  if(!finalName||!kpi){
+    alert("Action plan name and KPI are required.");
+    return;
+  }
+
+  if(validFrom&&validTo&&validFrom>validTo){
+    alert("Valid From must not be after Valid To.");
+    return;
+  }
+
+  var item=state.actionPlans.find(function(x){return x.name===oldName});
+  if(!item)return;
 
   item.name=finalName;
-  item.kpi=kpi.trim();
+  item.kpi=kpi;
+  item.validFrom=validFrom;
+  item.validTo=validTo;
 
   state.tasks.forEach(function(t){
     if(t.actionPlan===oldName)t.actionPlan=finalName;
   });
 
-  await dbUpdateRef("action_plan",oldName,finalName,item.kpi);
+  $("editApModal").classList.remove("show");
+
+  await dbUpdateRef("action_plan",oldName,finalName,kpi,{valid_from:validFrom||null,valid_to:validTo||null});
   await dbBulkUpdateTasksRef("action_plan",oldName,finalName);
   renderAll();
+}
+
+function closeEditApModal(){
+  $("editApModal").classList.remove("show");
 }
 
 async function deleteActionPlan(name){
