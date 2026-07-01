@@ -1906,6 +1906,7 @@ th.sortable:not(.sort-asc):not(.sort-desc) .sort-icon::after{content:"⇅"}
         <div class="dashboard-line-legend">
           <span class="line-legend-item"><span class="line-sample" style="background:#d4607a"></span>Work Allocation %</span>
           <span class="line-legend-item"><span class="line-sample" style="background:#3a7040"></span>Work Done %</span>
+          <span class="line-legend-item"><span class="line-sample" style="background:rgba(156,163,175,0.6);border:1px solid rgba(156,163,175,0.8);"></span>Number of Tasks</span>
         </div>
       </div>
 
@@ -5450,6 +5451,274 @@ function drawPerformanceLineChart(tasks, canvasId) {
   );
 }
 
+/* ---- Team Performance Line Chart (dual Y-axis) ---- */
+function drawTeamPerformanceLineChart(tasks, canvasId) {
+  canvasId = canvasId || 'teamPerformanceLineChart';
+  var canvas = $(canvasId);
+  if (!canvas) return;
+  if (tasks !== undefined) canvas._lastTasks = tasks;
+  var data = canvas._lastTasks || [];
+  if (!data.length) { drawEmptyChart(canvas, 'No team performance data available'); return; }
+
+  /* --- collect all members visible in this task set --- */
+  var memberIds = [];
+  data.forEach(function(t) { if (memberIds.indexOf(t.ownerId) < 0) memberIds.push(t.ownerId); });
+  var totalMembers = state.users.length || memberIds.length || 1;
+
+  /* --- collect all dates --- */
+  var dates = [];
+  data.forEach(function(t) { if (dates.indexOf(t.date) < 0) dates.push(t.date); });
+  dates.sort();
+
+  /* --- per-day calculations --- */
+  var alData = [], dnData = [], taskData = [];
+  /* per-day per-member detail for tooltip */
+  var alDetail = [], dnDetail = [], taskDetail = [];
+
+  dates.forEach(function(d) {
+    var dayTasks = data.filter(function(t) { return t.date === d; });
+
+    /* allocation per member */
+    var alByMember = {};
+    memberIds.forEach(function(mid) {
+      var mTasks = dayTasks.filter(function(t) { return t.ownerId === mid; });
+      alByMember[mid] = rounded(mTasks.reduce(function(s, t) { return s + Number(t.allocation || 0); }, 0));
+    });
+    /* also include members in state.users with 0 if not in tasks */
+    state.users.forEach(function(u) {
+      if (!(u.id in alByMember)) alByMember[u.id] = 0;
+    });
+    var alSum = Object.keys(alByMember).reduce(function(s, mid) { return s + alByMember[mid]; }, 0);
+    var memberCount = Object.keys(alByMember).length || 1;
+    alData.push(rounded(Math.min(100, alSum / memberCount)));
+    alDetail.push(alByMember);
+
+    /* workdone per member: sum(allocation * completion / 100) per member */
+    var dnByMember = {};
+    memberIds.forEach(function(mid) {
+      var mTasks = dayTasks.filter(function(t) { return t.ownerId === mid; });
+      dnByMember[mid] = rounded(mTasks.reduce(function(s, t) {
+        return s + Number(t.allocation || 0) * Number(t.completion || 0) / 100;
+      }, 0));
+    });
+    state.users.forEach(function(u) {
+      if (!(u.id in dnByMember)) dnByMember[u.id] = 0;
+    });
+    var dnSum = Object.keys(dnByMember).reduce(function(s, mid) { return s + dnByMember[mid]; }, 0);
+    dnData.push(rounded(Math.min(100, dnSum / memberCount)));
+    dnDetail.push(dnByMember);
+
+    /* task count per member */
+    var taskByMember = {};
+    state.users.forEach(function(u) { taskByMember[u.id] = 0; });
+    memberIds.forEach(function(mid) {
+      taskByMember[mid] = dayTasks.filter(function(t) { return t.ownerId === mid; }).length;
+    });
+    var totalTasks = Object.keys(taskByMember).reduce(function(s, mid) { return s + taskByMember[mid]; }, 0);
+    taskData.push(totalTasks);
+    taskDetail.push(taskByMember);
+  });
+
+  /* --- canvas setup --- */
+  var rv = setupCanvas(canvas), ctx = rv.ctx, width = rv.width, height = rv.height;
+  var pad = { top: 52, right: 70, bottom: 44, left: 62 };
+  var cW = width - pad.left - pad.right, cH = height - pad.top - pad.bottom;
+
+  /* --- Y scales --- */
+  var maxPct = 100;
+  var rawTaskMax = Math.max.apply(null, taskData.concat([1]));
+  /* align task max so it reaches top of plot area exactly */
+  var maxTask = Math.ceil(rawTaskMax * 1.05) || 1;
+
+  /* --- background --- */
+  ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, width, height);
+
+  /* --- title --- */
+  ctx.fillStyle = '#0f172a'; ctx.font = '900 15px "Segoe UI",Arial';
+  ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+  ctx.fillText('Team Performance Trend', pad.left, 24);
+  ctx.fillStyle = '#a87858'; ctx.font = '700 12px "DM Sans",sans-serif';
+  ctx.fillText('Allocation %, Work Done % and Number of Tasks by date', pad.left, 43);
+
+  /* --- grid lines & left Y axis (%) --- */
+  var pctTicks = [0, 20, 40, 60, 80, 100];
+  pctTicks.forEach(function(val) {
+    var gy = pad.top + cH - (val / maxPct) * cH;
+    ctx.beginPath(); ctx.strokeStyle = '#e5e7eb'; ctx.lineWidth = 1; ctx.setLineDash([4, 6]);
+    ctx.moveTo(pad.left, gy); ctx.lineTo(width - pad.right, gy); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = '#a87858'; ctx.font = '12px "DM Sans",sans-serif';
+    ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+    ctx.fillText(val + '%', pad.left - 8, gy);
+  });
+
+  /* --- right Y axis (tasks) --- */
+  var taskTicks = 5;
+  for (var ti = 0; ti <= taskTicks; ti++) {
+    var tVal = Math.round((maxTask / taskTicks) * ti);
+    var tY = pad.top + cH - (tVal / maxTask) * cH;
+    ctx.fillStyle = '#888'; ctx.font = '11px "DM Sans",sans-serif';
+    ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+    ctx.fillText(tVal, width - pad.right + 6, tY);
+  }
+
+  /* --- axis label right --- */
+  ctx.save();
+  ctx.fillStyle = '#888'; ctx.font = '700 11px "DM Sans",sans-serif';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.translate(width - pad.right + 52, pad.top + cH / 2);
+  ctx.rotate(-Math.PI / 2);
+  ctx.fillText('Tasks', 0, 0);
+  ctx.restore();
+
+  /* --- axes border --- */
+  ctx.strokeStyle = '#cbd5e1'; ctx.lineWidth = 1.3; ctx.setLineDash([]);
+  ctx.beginPath();
+  ctx.moveTo(pad.left, pad.top);
+  ctx.lineTo(pad.left, pad.top + cH);
+  ctx.lineTo(width - pad.right, pad.top + cH);
+  ctx.lineTo(width - pad.right, pad.top);
+  ctx.stroke();
+
+  /* --- coordinate helpers --- */
+  var barW = dates.length > 1 ? Math.max(4, Math.min(28, (cW / dates.length) * 0.55)) : 28;
+  function getX(idx) {
+    return dates.length === 1 ? pad.left + cW / 2 : pad.left + (idx / (dates.length - 1)) * cW;
+  }
+  function getYpct(v) { return pad.top + cH - (v / maxPct) * cH; }
+  function getYtask(v) { return pad.top + cH - (v / maxTask) * cH; }
+
+  /* --- draw task bars FIRST (behind lines) --- */
+  ctx.save();
+  ctx.beginPath(); ctx.rect(pad.left, pad.top, cW, cH); ctx.clip();
+  var barRects = [];
+  taskData.forEach(function(v, idx) {
+    var bx = getX(idx) - barW / 2;
+    var by = getYtask(v);
+    var bh = pad.top + cH - by;
+    ctx.fillStyle = 'rgba(156,163,175,0.35)';
+    ctx.fillRect(bx, by, barW, bh);
+    ctx.strokeStyle = 'rgba(156,163,175,0.7)'; ctx.lineWidth = 1; ctx.setLineDash([]);
+    ctx.strokeRect(bx, by, barW, bh);
+    barRects.push({ x: bx, y: by, w: barW, h: bh, cx: getX(idx) });
+  });
+  ctx.restore();
+
+  /* --- clip and draw lines (on top of bars) --- */
+  ctx.save();
+  ctx.beginPath(); ctx.rect(pad.left, pad.top, cW, cH); ctx.clip();
+
+  function drawLine(lineData, getYFn, color, lineWidth) {
+    ctx.strokeStyle = color; ctx.lineWidth = lineWidth;
+    ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.setLineDash([]);
+    ctx.beginPath();
+    lineData.forEach(function(v, idx) {
+      var x = getX(idx), y = getYFn(v);
+      idx === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+    });
+    ctx.stroke();
+    var step = Math.max(1, Math.ceil(lineData.length / 10));
+    lineData.forEach(function(v, idx) {
+      if (idx !== 0 && idx !== lineData.length - 1 && idx % step !== 0) return;
+      var x = getX(idx), y = getYFn(v);
+      ctx.beginPath(); ctx.fillStyle = '#fff'; ctx.arc(x, y, 5.5, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.fillStyle = color; ctx.arc(x, y, 3.5, 0, Math.PI * 2); ctx.fill();
+    });
+  }
+
+  /* % Allocation — deep pink */
+  drawLine(alData, getYpct, '#d4607a', 2.5);
+  /* % Workdone — green */
+  drawLine(dnData, getYpct, '#3a7040', 2.5);
+
+  ctx.restore();
+
+  /* --- X axis labels --- */
+  var lStep = Math.max(1, Math.ceil(dates.length / 7));
+  ctx.fillStyle = '#a87858'; ctx.font = '700 12px "DM Sans",sans-serif';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+  dates.forEach(function(d, idx) {
+    if (idx !== 0 && idx !== dates.length - 1 && idx % lStep !== 0) return;
+    ctx.fillText(d.slice(5), getX(idx), pad.top + cH + 18);
+  });
+
+  /* --- tooltip hit points --- */
+  var pts = dates.map(function(d, idx) {
+    return {
+      x: getX(idx), date: d, idx: idx,
+      yAl: getYpct(alData[idx]), al: alData[idx],
+      yDn: getYpct(dnData[idx]), dn: dnData[idx],
+      bar: barRects[idx], taskCount: taskData[idx]
+    };
+  });
+
+  attachTooltip(canvas,
+    function(e) {
+      var rc = canvas.getBoundingClientRect();
+      var sc = parseFloat(canvas.style.width) / rc.width;
+      var mx = (e.clientX - rc.left) * sc, my = (e.clientY - rc.top) * sc;
+
+      var best = null, bd = Infinity, bestType = null;
+      pts.forEach(function(p) {
+        var dAl = Math.sqrt((mx - p.x) * (mx - p.x) + (my - p.yAl) * (my - p.yAl));
+        var dDn = Math.sqrt((mx - p.x) * (mx - p.x) + (my - p.yDn) * (my - p.yDn));
+        /* bar hit: inside rect */
+        var bar = p.bar;
+        var inBar = bar && mx >= bar.x && mx <= bar.x + bar.w && my >= bar.y && my <= bar.y + bar.h;
+        var dBar = inBar ? 0 : (bar ? Math.min(Math.abs(mx - bar.cx), 9999) : 9999);
+
+        var dMin = Math.min(dAl, dDn, inBar ? 0 : 9999);
+        /* prefer bar when cursor is inside it */
+        if (inBar) {
+          if (0 < bd) { bd = 0; best = p; bestType = 'task'; }
+        } else {
+          if (dAl < bd && dAl < 30) { bd = dAl; best = p; bestType = 'al'; }
+          if (dDn < bd && dDn < 30) { bd = dDn; best = p; bestType = 'dn'; }
+        }
+      });
+
+      if (best) {
+        var idx = best.idx;
+        var html = '<div style="margin-bottom:5px;color:#f5c9a0;font-size:11px;font-weight:800;">' +
+          best.date.split('-').reverse().join('/') + '</div>';
+
+        if (bestType === 'al') {
+          html += '<div style="color:#d4607a;margin-bottom:4px;">\u25cf Team Allocation: <b>' + best.al + '%</b></div>';
+          html += '<div style="color:#f5c9a0;font-size:11px;margin-bottom:2px;">By member:</div>';
+          var alDet = alDetail[idx];
+          state.users.forEach(function(u) {
+            var v = alDet[u.id] !== undefined ? alDet[u.id] : 0;
+            html += '<div style="padding-left:8px;">\u2013 ' + escapeHtml(u.name) + ': <b>' + v + '%</b></div>';
+          });
+        } else if (bestType === 'dn') {
+          html += '<div style="color:#3a7040;margin-bottom:4px;">\u25cf Team Work Done: <b>' + best.dn + '%</b></div>';
+          html += '<div style="color:#f5c9a0;font-size:11px;margin-bottom:2px;">By member:</div>';
+          var dnDet = dnDetail[idx];
+          state.users.forEach(function(u) {
+            var v = dnDet[u.id] !== undefined ? dnDet[u.id] : 0;
+            html += '<div style="padding-left:8px;">\u2013 ' + escapeHtml(u.name) + ': <b>' + v + '%</b></div>';
+          });
+        } else {
+          html += '<div style="color:#9ca3af;margin-bottom:4px;">\u25cf Total Tasks: <b>' + best.taskCount + '</b></div>';
+          html += '<div style="color:#f5c9a0;font-size:11px;margin-bottom:2px;">By member:</div>';
+          var tDet = taskDetail[idx];
+          state.users.forEach(function(u) {
+            var v = tDet[u.id] !== undefined ? tDet[u.id] : 0;
+            html += '<div style="padding-left:8px;">\u2013 ' + escapeHtml(u.name) + ': <b>' + v + ' task(s)</b></div>';
+          });
+        }
+
+        Tooltip.show(e.clientX, e.clientY, html);
+        canvas.style.cursor = 'pointer';
+      } else {
+        Tooltip.hide();
+        canvas.style.cursor = 'default';
+      }
+    },
+    function() { Tooltip.hide(); canvas.style.cursor = 'default'; }
+  );
+}
+
 /* ---- Pie Chart ---- */
 function drawPieChart(canvasId, legendId, groupedData, emptyMessage, activeValue, onClickFn) {
   var canvas = $(canvasId), legend = $(legendId);
@@ -5818,7 +6087,7 @@ function renderTeamDashboardCharts(baseTasks, filteredTasks){
   baseTasks=baseTasks||filteredTasks;
   filteredTasks=filteredTasks||baseTasks;
 
-  drawPerformanceLineChart(filteredTasks,"teamPerformanceLineChart");
+  drawTeamPerformanceLineChart(filteredTasks,"teamPerformanceLineChart");
 
   drawPieChart(
     "teamCategoryPieChart","teamCategoryPieLegend",
@@ -5855,9 +6124,8 @@ if (typeof ResizeObserver !== 'undefined') {
   var _ro = new ResizeObserver(function() {
     clearTimeout(_resizeTimer);
     _resizeTimer = setTimeout(function(){
-      ['performanceLineChart','teamPerformanceLineChart'].forEach(function(id) {
-        var c = $(id); if (c && c._lastTasks) drawPerformanceLineChart(undefined, id);
-      });
+      var c0 = $('performanceLineChart'); if (c0 && c0._lastTasks) drawPerformanceLineChart(undefined, 'performanceLineChart');
+      var c1 = $('teamPerformanceLineChart'); if (c1 && c1._lastTasks) drawTeamPerformanceLineChart(undefined, 'teamPerformanceLineChart');
       ['categoryPieChart','actionPlanPieChart','teamCategoryPieChart','teamActionPlanPieChart'].forEach(function(id) {
         var c = $(id);
         var lid = id.replace('Chart','Legend').replace('Pie','Pie');
@@ -5879,9 +6147,8 @@ if (typeof ResizeObserver !== 'undefined') {
   window.addEventListener('resize', function() {
     clearTimeout(_resizeTimer);
     _resizeTimer = setTimeout(function(){
-      ['performanceLineChart','teamPerformanceLineChart'].forEach(function(id) {
-        var c = $(id); if (c && c._lastTasks) drawPerformanceLineChart(undefined, id);
-      });
+      var c0 = $('performanceLineChart'); if (c0 && c0._lastTasks) drawPerformanceLineChart(undefined, 'performanceLineChart');
+      var c1 = $('teamPerformanceLineChart'); if (c1 && c1._lastTasks) drawTeamPerformanceLineChart(undefined, 'teamPerformanceLineChart');
     }, 180);
   });
 }
